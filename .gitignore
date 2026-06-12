@@ -1,0 +1,96 @@
+# ===== Entornos =====
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ===== Node / TypeScript =====
+node_modules/
+dist/
+build/
+.vite/
+coverage/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# ===== Java / Maven =====
+target/
+*.class
+*.jar
+*.war
+*.ear
+.mvn/
+!.mvn/wrapper/maven-wrapper.properties
+hs_err_pid*.log
+
+# ===== IDEs y editores =====
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.project
+.classpath
+.settings/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== Docker / runtime =====
+*.pid
+*.sock
+docker-compose.override.yml
+
+# ===== Secretos y certificados =====
+infra/nginx/certs/*.key
+infra/nginx/certs/*.crt
+infra/nginx/certs/*.pem
+infra/asterisk/tls/*.key
+infra/asterisk/tls/*.crt
+infra/asterisk/tls/*.pem
+!infra/nginx/certs/.gitkeep
+!infra/asterisk/tls/.gitkeep
+*.p12
+*.jks
+*.keystore
+*.truststore
+
+# ===== Cobertura, SonarQube, Trivy =====
+.scannerwork/
+.sonar/
+trivy-report.*
+zap-report.*
+playwright-report/
+playwright/.cache/
+test-results/
+
+# ===== Bases de datos locales =====
+*.sqlite
+*.sqlite3
+*.db
+
+# ===== Logs de servicios =====
+logs/
+*.log.*
+
+# ===== Misceláneos =====
+tmp/
+.tmp/
+*.bak
+*.orig
+
+# ===== Notas locales y borradores =====
+NOTES.md
+notes.md
+TODO.md
+todo.md
+SCRATCH.md
+scratch/
+*.local.md

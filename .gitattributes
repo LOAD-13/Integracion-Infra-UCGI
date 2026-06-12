@@ -1,0 +1,45 @@
+# Forzar LF en todo el repo para evitar problemas entre Windows, Linux y contenedores.
+* text=auto eol=lf
+
+# Archivos binarios — sin conversión
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.svg  text
+*.pdf  binary
+*.zip  binary
+*.tar  binary
+*.gz   binary
+*.mp4  binary
+*.mov  binary
+*.mp3  binary
+
+# Scripts y configs que deben ser ejecutables/legibles en Unix
+*.sh    text eol=lf
+*.bash  text eol=lf
+Dockerfile text eol=lf
+Makefile   text eol=lf
+
+# YAML, JSON, MD, TS, JS
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.js    text eol=lf
+*.jsx   text eol=lf
+
+# Java / Maven
+*.java  text eol=lf
+*.xml   text eol=lf
+*.properties text eol=lf
+
+# Configs Asterisk
+*.conf      text eol=lf
+*.conf.template text eol=lf
+
+# SQL
+*.sql   text eol=lf
