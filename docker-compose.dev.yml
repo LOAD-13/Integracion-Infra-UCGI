@@ -1,0 +1,29 @@
+# docker-compose.dev.yml — Overrides para desarrollo
+# Uso: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Diferencias respecto al perfil prod:
+#   - SIP plano en 5060/udp para softphones de prueba sin TLS.
+#   - Healthchecks con start_period más generoso.
+#   - Hot-reload de configs (mounts adicionales).
+
+services:
+
+  asterisk:
+    environment:
+      - ASTERISK_SIP_MODE=plain
+    volumes:
+      - ./infra/asterisk/configs:/etc/asterisk:rw  # rw en dev para edición rápida
+
+  integration-api:
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      LOGGING_LEVEL_COM_UCGI: DEBUG
+
+  crm:
+    environment:
+      NODE_ENV: development
+
+  nginx:
+    # En dev no forzamos HSTS para evitar problemas con autofirmados.
+    environment:
+      - NGINX_DEV_MODE=1

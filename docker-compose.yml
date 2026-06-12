@@ -1,0 +1,240 @@
+# docker-compose.yml — Orquestación del entorno UCGI
+# Esqueleto inicial del Sprint 1. Cada servicio se irá afinando en sus HUs.
+
+services:
+
+  # ===== Base de datos =====
+  db:
+    image: mariadb:10.6
+    container_name: ucgi-db
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
+      MARIADB_USER: ${MARIADB_USER}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD}
+      MARIADB_DATABASE: ${MARIADB_DATABASE}
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./infra/mariadb/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "3306:3306"
+    networks:
+      - ucgi-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MARIADB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ===== midPoint (IAM) =====
+  midpoint:
+    image: evolveum/midpoint:latest
+    container_name: ucgi-midpoint
+    restart: unless-stopped
+    environment:
+      MP_SET_midpoint_repository_jdbcUrl: ${MP_DB_URL}
+      MP_SET_midpoint_repository_jdbcUsername: ${MP_DB_USER}
+      MP_SET_midpoint_repository_jdbcPassword: ${MP_DB_PASSWORD}
+      MP_SET_midpoint_repository_database: mariadb
+    volumes:
+      - midpoint-home:/opt/midpoint/var
+      - ./infra/midpoint/resources:/opt/midpoint/var/import-on-startup:ro
+    ports:
+      - "8080:8080"
+    networks:
+      - ucgi-net
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/midpoint/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  # ===== Asterisk (PBX) =====
+  asterisk:
+    build:
+      context: ./infra/asterisk
+      dockerfile: Dockerfile
+    container_name: ucgi-asterisk
+    restart: unless-stopped
+    volumes:
+      - asterisk-config:/etc/asterisk
+      - ./infra/asterisk/configs:/etc/asterisk/templates:ro
+      - ./infra/asterisk/tls:/etc/asterisk/keys:ro
+    ports:
+      - "5060:5060/udp"        # SIP plano (dev)
+      - "5061:5061/tcp"        # SIP-TLS (prod)
+      - "8089:8089/tcp"        # WSS (WebRTC)
+      - "5038:5038/tcp"        # AMI (interno; se restringe en prod)
+      - "10000-10100:10000-10100/udp"  # RTP
+    networks:
+      - ucgi-net
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "asterisk", "-rx", "core show version"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+
+  # ===== Microservicio de integración (Spring Boot) =====
+  integration-api:
+    build:
+      context: ./services/integration-api
+      dockerfile: Dockerfile
+    container_name: ucgi-integration-api
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES}
+      MIDPOINT_BASE_URL: ${MIDPOINT_BASE_URL}
+      MIDPOINT_ADMIN_USER: ${MIDPOINT_ADMIN_USER}
+      MIDPOINT_ADMIN_PASSWORD: ${MIDPOINT_ADMIN_PASSWORD}
+      ASTERISK_AMI_HOST: ${ASTERISK_AMI_HOST}
+      ASTERISK_AMI_PORT: ${ASTERISK_AMI_PORT}
+      ASTERISK_AMI_USER: ${ASTERISK_AMI_USER}
+      ASTERISK_AMI_SECRET: ${ASTERISK_AMI_SECRET}
+      ASTERISK_CONFIG_PATH: ${ASTERISK_CONFIG_PATH}
+    ports:
+      - "8081:8081"
+    networks:
+      - ucgi-net
+    depends_on:
+      db:
+        condition: service_healthy
+      midpoint:
+        condition: service_started
+      asterisk:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+
+  # ===== CRM (React) =====
+  crm:
+    build:
+      context: ./services/crm-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+        VITE_SIP_WS_URL: ${VITE_SIP_WS_URL}
+        VITE_SIP_DOMAIN: ${VITE_SIP_DOMAIN}
+    container_name: ucgi-crm
+    restart: unless-stopped
+    networks:
+      - ucgi-net
+    depends_on:
+      - integration-api
+
+  # ===== Nginx reverse proxy + TLS =====
+  nginx:
+    build:
+      context: ./infra/nginx
+      dockerfile: Dockerfile
+    container_name: ucgi-nginx
+    restart: unless-stopped
+    volumes:
+      - ./infra/nginx/certs:/etc/nginx/certs:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - ucgi-net
+    depends_on:
+      - crm
+      - integration-api
+      - midpoint
+
+  # ===== SonarQube =====
+  sonar:
+    image: sonarqube:lts-community
+    container_name: ucgi-sonar
+    restart: unless-stopped
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonar-db:5432/sonar
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: sonar
+    volumes:
+      - sonar-data:/opt/sonarqube/data
+      - sonar-logs:/opt/sonarqube/logs
+      - sonar-extensions:/opt/sonarqube/extensions
+    ports:
+      - "9000:9000"
+    networks:
+      - ucgi-net
+    depends_on:
+      - sonar-db
+
+  sonar-db:
+    image: postgres:15-alpine
+    container_name: ucgi-sonar-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: sonar
+      POSTGRES_DB: sonar
+    volumes:
+      - sonar-pg-data:/var/lib/postgresql/data
+    networks:
+      - ucgi-net
+
+  # ===== Prometheus =====
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: ucgi-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=7d'
+    ports:
+      - "9090:9090"
+    networks:
+      - ucgi-net
+
+  # ===== Grafana =====
+  grafana:
+    image: grafana/grafana:latest
+    container_name: ucgi-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    networks:
+      - ucgi-net
+    depends_on:
+      - prometheus
+
+networks:
+  ucgi-net:
+    name: ucgi-net
+    driver: bridge
+
+volumes:
+  db-data:
+  midpoint-home:
+  asterisk-config:
+  sonar-data:
+  sonar-logs:
+  sonar-extensions:
+  sonar-pg-data:
+  prometheus-data:
+  grafana-data:
