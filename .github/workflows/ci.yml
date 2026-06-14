@@ -17,16 +17,16 @@ jobs:
       - name: Validate docker compose config
         run: docker compose config --quiet
 
-  conditional-true:
-    name: If true literal
+  hashfiles-naked:
+    name: hashFiles without curly braces
     runs-on: ubuntu-latest
-    if: true
+    if: hashFiles('docker-compose.yml') != ''
     steps:
-      - run: echo "should run"
+      - run: echo "ran"
 
-  conditional-false:
-    name: If false literal
+  hashfiles-curly:
+    name: hashFiles inside curly
     runs-on: ubuntu-latest
-    if: false
+    if: ${{ hashFiles('docker-compose.yml') != '' }}
     steps:
-      - run: echo "should skip"
+      - run: echo "ran"
