@@ -16,3 +16,18 @@ jobs:
         run: cp .env.example .env
       - name: Validate docker compose config
         run: docker compose config --quiet
+
+  build-api:
+    name: Build integration-api (Java)
+    runs-on: ubuntu-latest
+    if: ${{ hashFiles('services/integration-api/pom.xml') != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Build (skip tests)
+        working-directory: services/integration-api
+        run: ./mvnw -B verify -DskipTests
