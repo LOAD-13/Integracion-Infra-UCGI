@@ -16,8 +16,10 @@ services:
     volumes:
       - db-data:/var/lib/mysql
       - ./infra/mariadb/init:/docker-entrypoint-initdb.d:ro
-    ports:
-      - "3306:3306"
+    # NOTA: el puerto 3306 NO se expone al host en el perfil prod por seguridad.
+    # La DB solo es alcanzable desde la red ucgi-net por el resto de servicios.
+    # En dev, docker-compose.dev.yml mapea 13306 (host) -> 3306 (container)
+    # para poder conectarse con clientes locales (DBeaver, mysql cli).
     networks:
       - ucgi-net
     healthcheck:
