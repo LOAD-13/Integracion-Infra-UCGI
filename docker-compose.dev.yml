@@ -5,8 +5,17 @@
 #   - SIP plano en 5060/udp para softphones de prueba sin TLS.
 #   - Healthchecks con start_period más generoso.
 #   - Hot-reload de configs (mounts adicionales).
+#   - Puertos de DB y otros remapeados para evitar choques con servicios nativos
+#     comunes en Windows/Linux dev (MySQL/MariaDB en 3306, etc.).
 
 services:
+
+  db:
+    # En dev exponemos en 13306 host -> 3306 container para no chocar con un
+    # mysqld nativo que el desarrollador pueda tener corriendo en su SO.
+    # En la red ucgi-net los demás servicios siguen llegando por db:3306.
+    ports:
+      - "13306:3306"
 
   asterisk:
     environment:
