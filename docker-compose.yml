@@ -28,20 +28,42 @@ services:
       timeout: 5s
       retries: 10
 
+  # ===== PostgreSQL dedicado a midPoint =====
+  # Decisión: midPoint 4.4 dropeó las DDL de MariaDB en la imagen oficial; mantenemos
+  # MariaDB para el CRM (que es código nuestro) y usamos PostgreSQL solo para el
+  # repository de midPoint (que es la opción que evolveum sostiene oficialmente).
+  midpoint-db:
+    image: postgres:15-alpine
+    container_name: ucgi-midpoint-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${MP_DB_USER}
+      POSTGRES_PASSWORD: ${MP_DB_PASSWORD}
+      POSTGRES_DB: midpoint
+    volumes:
+      - midpoint-pg-data:/var/lib/postgresql/data
+    networks:
+      - ucgi-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${MP_DB_USER} -d midpoint"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   # ===== midPoint (IAM) =====
   midpoint:
     build:
       context: ./infra/midpoint
       dockerfile: Dockerfile
-    image: ucgi/midpoint:4.7.4
+    image: ucgi/midpoint:4.4.11
     container_name: ucgi-midpoint
     restart: unless-stopped
     environment:
-      # JDBC: apunta al servicio `db` de la red ucgi-net, esquema midpoint.
-      MP_SET_midpoint_repository_jdbcUrl: ${MP_DB_URL}
+      # JDBC: apunta al servicio midpoint-db (PostgreSQL) en la red ucgi-net.
+      MP_SET_midpoint_repository_jdbcUrl: jdbc:postgresql://midpoint-db:5432/midpoint
       MP_SET_midpoint_repository_jdbcUsername: ${MP_DB_USER}
       MP_SET_midpoint_repository_jdbcPassword: ${MP_DB_PASSWORD}
-      MP_SET_midpoint_repository_database: mariadb
+      MP_SET_midpoint_repository_database: postgresql
       MP_SET_midpoint_repository_hibernateHbm2ddl: none
       # Password del usuario administrator generado en el primer bootstrap.
       MP_SET_midpoint_administrator_initialPassword: ${MP_ADMIN_PASSWORD}
@@ -54,6 +76,8 @@ services:
       - ucgi-net
     depends_on:
       db:
+        condition: service_healthy
+      midpoint-db:
         condition: service_healthy
     healthcheck:
       # midPoint 4.7 no expone /actuator/health por defecto, usamos la pagina de login.
@@ -241,6 +265,7 @@ networks:
 volumes:
   db-data:
   midpoint-home:
+  midpoint-pg-data:
   asterisk-config:
   sonar-data:
   sonar-logs:

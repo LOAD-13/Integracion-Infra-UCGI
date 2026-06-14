@@ -26,7 +26,7 @@ El resultado del lab será un prototipo funcional levantado con `docker-compose 
 
 | # | Tema | Resolución adoptada |
 |---|------|---------------------|
-| 1 | DB: ¿MySQL/Postgres o MariaDB? | **MariaDB 10.6** (cumple guía técnica, evita problemas init.sql). |
+| 1 | DB: ¿MySQL/Postgres o MariaDB? | **MariaDB 10.6 para el CRM** (cumple guía técnica, evita problemas init.sql). midPoint requiere un **PostgreSQL 15 dedicado** porque evolveum eliminó el conector MariaDB en la imagen 4.4+ (la DDL `mysql-4.4-all.sql` ya no se distribuye). Resultado: 2 bases — `db` (mariadb, schema `crm`) y `midpoint-db` (postgres, base `midpoint`). |
 | 2 | "REST API nativa" de Asterisk inexistente | **Microservicio intermediario en Spring Boot (Java 17)** expone REST a midPoint y modifica `pjsip.conf` + recarga Asterisk. |
 | 3 | TLS SIP vs puerto 5060 plano | **Puerto 5061 SIP-TLS con certificados autogenerados** para la prueba final. El 5060 queda solo para desarrollo. |
 | 4 | SonarQube sobre `.conf` de Asterisk | SonarQube apunta al **código Java del microservicio** y al **TypeScript del CRM** — métricas reales de mantenibilidad y fiabilidad. |
@@ -40,7 +40,7 @@ El resultado del lab será un prototipo funcional levantado con `docker-compose 
 | Microservicio de integración | Spring Boot 3 + Java 17 + Maven. Expone REST consumido por midPoint para CRUD de extensiones SIP. |
 | PBX | Asterisk (debian:bullseye), módulos `chan_pjsip`, `res_http_websocket`, `res_pjsip_transport_websocket`, `res_srtp`. |
 | IAM | `evolveum/midpoint` oficial. |
-| Base de datos | MariaDB 10.6 (un solo contenedor con dos esquemas: `midpoint` y `crm`). |
+| Base de datos | **2 contenedores**: MariaDB 10.6 con schema `crm` para datos del CRM, PostgreSQL 15 con base `midpoint` para el repository de midPoint (forzado por la imagen oficial). |
 | Reverse proxy / TLS frontend | Nginx con TLS terminado (certs autofirmados). |
 | Observabilidad | Prometheus + Grafana con exporters (`node_exporter`, `asterisk_exporter`, JVM Actuator). |
 | Calidad estática | SonarQube contenedorizado. |
@@ -80,7 +80,8 @@ flowchart LR
         api[Spring Boot<br/>integration-api :8081]
         mid[midPoint<br/>:8080]
         ast[Asterisk<br/>SIP 5061 TLS<br/>WSS 8089<br/>RTP 10000-10100]
-        db[(MariaDB 10.6<br/>:3306<br/>schemas: midpoint, crm)]
+        db[(MariaDB 10.6<br/>:3306<br/>schema: crm)]
+        mdb[(PostgreSQL 15<br/>:5432<br/>db: midpoint)]
         sonar[SonarQube<br/>:9000]
         prom[Prometheus<br/>:9090]
         graf[Grafana<br/>:3001]
@@ -96,7 +97,7 @@ flowchart LR
     crm -- REST --> api
     api -- JDBC --> db
     api -- AMI/exec --> ast
-    mid -- JDBC --> db
+    mid -- JDBC --> mdb
     mid -- REST --> api
     api -- escribe pjsip.conf<br/>y recarga --> ast
 
