@@ -17,16 +17,58 @@ jobs:
       - name: Validate docker compose config
         run: docker compose config --quiet
 
-  hashfiles-naked:
-    name: hashFiles without curly braces
+  build-api:
+    name: Build integration-api (Java)
     runs-on: ubuntu-latest
-    if: hashFiles('docker-compose.yml') != ''
     steps:
-      - run: echo "ran"
+      - uses: actions/checkout@v4
+      - name: Detect pom.xml
+        id: detect
+        run: |
+          if [ -f services/integration-api/pom.xml ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::pom.xml todavia no existe; build-api se ejecutara cuando este disponible."
+          fi
+      - name: Set up Java
+        if: steps.detect.outputs.exists == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Build (skip tests)
+        if: steps.detect.outputs.exists == 'true'
+        working-directory: services/integration-api
+        run: ./mvnw -B verify -DskipTests
 
-  hashfiles-curly:
-    name: hashFiles inside curly
+  lint-crm:
+    name: Lint CRM (Node)
     runs-on: ubuntu-latest
-    if: ${{ hashFiles('docker-compose.yml') != '' }}
     steps:
-      - run: echo "ran"
+      - uses: actions/checkout@v4
+      - name: Detect package.json
+        id: detect
+        run: |
+          if [ -f services/crm-frontend/package.json ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::package.json todavia no existe; lint-crm se ejecutara cuando este disponible."
+          fi
+      - name: Set up Node
+        if: steps.detect.outputs.exists == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: services/crm-frontend/package-lock.json
+      - name: Install
+        if: steps.detect.outputs.exists == 'true'
+        working-directory: services/crm-frontend
+        run: npm ci
+      - name: Lint
+        if: steps.detect.outputs.exists == 'true'
+        working-directory: services/crm-frontend
+        run: npm run lint
