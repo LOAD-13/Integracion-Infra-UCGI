@@ -17,8 +17,16 @@ jobs:
       - name: Validate docker compose config
         run: docker compose config --quiet
 
-  noop:
-    name: Noop second job
+  conditional-true:
+    name: If true literal
     runs-on: ubuntu-latest
+    if: true
     steps:
-      - run: echo "noop"
+      - run: echo "should run"
+
+  conditional-false:
+    name: If false literal
+    runs-on: ubuntu-latest
+    if: false
+    steps:
+      - run: echo "should skip"
