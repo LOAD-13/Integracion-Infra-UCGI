@@ -23,7 +23,7 @@ fi
 case "$ALIAS" in
   joaquin)
     NAME="Joaquín Loa Denegri"
-    EMAIL="joaquin.loa@ucgi.local"
+    EMAIL="104539394+LOAD-13@users.noreply.github.com"
     ;;
   mikiasa)
     NAME="Mikiasa"
