@@ -28,14 +28,21 @@ services:
 
   # ===== midPoint (IAM) =====
   midpoint:
-    image: evolveum/midpoint:latest
+    build:
+      context: ./infra/midpoint
+      dockerfile: Dockerfile
+    image: ucgi/midpoint:4.7.4
     container_name: ucgi-midpoint
     restart: unless-stopped
     environment:
+      # JDBC: apunta al servicio `db` de la red ucgi-net, esquema midpoint.
       MP_SET_midpoint_repository_jdbcUrl: ${MP_DB_URL}
       MP_SET_midpoint_repository_jdbcUsername: ${MP_DB_USER}
       MP_SET_midpoint_repository_jdbcPassword: ${MP_DB_PASSWORD}
       MP_SET_midpoint_repository_database: mariadb
+      MP_SET_midpoint_repository_hibernateHbm2ddl: none
+      # Password del usuario administrator generado en el primer bootstrap.
+      MP_SET_midpoint_administrator_initialPassword: ${MP_ADMIN_PASSWORD}
     volumes:
       - midpoint-home:/opt/midpoint/var
       - ./infra/midpoint/resources:/opt/midpoint/var/import-on-startup:ro
@@ -47,11 +54,12 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8080/midpoint/actuator/health"]
+      # midPoint 4.7 no expone /actuator/health por defecto, usamos la pagina de login.
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8080/midpoint/login"]
       interval: 30s
       timeout: 10s
-      retries: 10
-      start_period: 60s
+      retries: 20
+      start_period: 180s
 
   # ===== Asterisk (PBX) =====
   asterisk:
