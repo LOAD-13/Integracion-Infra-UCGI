@@ -27,7 +27,22 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: maven
       - name: Build (skip tests)
         working-directory: services/integration-api
         run: ./mvnw -B verify -DskipTests
+
+  lint-crm:
+    name: Lint CRM (Node)
+    runs-on: ubuntu-latest
+    if: ${{ hashFiles('services/crm-frontend/package.json') != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install
+        working-directory: services/crm-frontend
+        run: npm ci
+      - name: Lint
+        working-directory: services/crm-frontend
+        run: npm run lint
