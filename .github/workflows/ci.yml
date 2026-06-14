@@ -5,12 +5,14 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
-  workflow_dispatch: {}
 
 jobs:
-  hello:
-    name: Hello world
+  validate-compose:
+    name: Validate docker-compose
     runs-on: ubuntu-latest
     steps:
-      - name: Print hello
-        run: echo "hello"
+      - uses: actions/checkout@v4
+      - name: Copy env example
+        run: cp .env.example .env
+      - name: Validate docker compose config
+        run: docker compose config --quiet
