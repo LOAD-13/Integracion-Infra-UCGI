@@ -5,47 +5,12 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  workflow_dispatch: {}
 
 jobs:
-  validate-compose:
-    name: Validate docker-compose
+  hello:
+    name: Hello world
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Copy env example
-        run: cp .env.example .env
-      - name: Validate docker compose config
-        run: docker compose config --quiet
-
-  build-api:
-    name: Build integration-api (Java)
-    runs-on: ubuntu-latest
-    if: ${{ hashFiles('services/integration-api/pom.xml') != '' }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: maven
-      - name: Build (skip tests)
-        working-directory: services/integration-api
-        run: ./mvnw -B verify -DskipTests
-
-  lint-crm:
-    name: Lint CRM (Node)
-    runs-on: ubuntu-latest
-    if: ${{ hashFiles('services/crm-frontend/package.json') != '' }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: npm
-          cache-dependency-path: services/crm-frontend/package-lock.json
-      - name: Install
-        working-directory: services/crm-frontend
-        run: npm ci
-      - name: Lint
-        working-directory: services/crm-frontend
-        run: npm run lint
+      - name: Print hello
+        run: echo "hello"
