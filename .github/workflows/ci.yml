@@ -17,16 +17,8 @@ jobs:
       - name: Validate docker compose config
         run: docker compose config --quiet
 
-  always-skipped:
-    name: Always-skipped via false literal
+  noop:
+    name: Noop second job
     runs-on: ubuntu-latest
-    if: false
     steps:
-      - run: echo "should never run"
-
-  noop-with-hashfiles-existing:
-    name: Noop with hashFiles on existing path
-    runs-on: ubuntu-latest
-    if: ${{ hashFiles('docker-compose.yml') != '' }}
-    steps:
-      - run: echo "this should run"
+      - run: echo "noop"
