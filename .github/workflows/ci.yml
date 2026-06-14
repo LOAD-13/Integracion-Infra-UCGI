@@ -17,9 +17,16 @@ jobs:
       - name: Validate docker compose config
         run: docker compose config --quiet
 
-  build-api:
-    name: Build integration-api (Java)
+  always-skipped:
+    name: Always-skipped via false literal
     runs-on: ubuntu-latest
-    if: ${{ hashFiles('services/integration-api/pom.xml') != '' }}
+    if: false
     steps:
-      - run: echo "would build"
+      - run: echo "should never run"
+
+  noop-with-hashfiles-existing:
+    name: Noop with hashFiles on existing path
+    runs-on: ubuntu-latest
+    if: ${{ hashFiles('docker-compose.yml') != '' }}
+    steps:
+      - run: echo "this should run"
