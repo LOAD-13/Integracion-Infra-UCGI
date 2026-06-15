@@ -1,0 +1,67 @@
+;
+; pjsip.conf.template — plantilla Mustache que el microservicio Java
+; renderiza con los datos de crm.sip_extensions y deja en
+; /etc/asterisk/pjsip.conf antes de un "pjsip reload".
+;
+; Estructura:
+;   - Sección fija de transports (igual que pjsip.conf inicial)
+;   - Iteración {{#extensions}} ... {{/extensions}} con un trío
+;     endpoint + auth + aor por agente.
+;
+
+[transport-udp]
+type = transport
+protocol = udp
+bind = 0.0.0.0:5060
+
+[transport-ws]
+type = transport
+protocol = ws
+bind = 0.0.0.0:8088
+
+;[transport-tls]
+;type = transport
+;protocol = tls
+;bind = 0.0.0.0:5061
+;cert_file = /etc/asterisk/tls/asterisk.pem
+;priv_key_file = /etc/asterisk/tls/asterisk.key
+;method = tlsv1_2
+
+;[transport-wss]
+;type = transport
+;protocol = wss
+;bind = 0.0.0.0:8089
+;cert_file = /etc/asterisk/tls/asterisk.pem
+;priv_key_file = /etc/asterisk/tls/asterisk.key
+
+;------------------------------------------------------------------------------
+; Endpoints generados por integration-api
+;------------------------------------------------------------------------------
+{{#extensions}}
+[{{extension}}]
+type = endpoint
+context = internal
+disallow = all
+allow = opus,ulaw
+auth = {{extension}}-auth
+aors = {{extension}}
+webrtc = yes
+use_avpf = yes
+media_encryption = dtls
+dtls_verify = fingerprint
+dtls_cert_file = /etc/asterisk/tls/asterisk.pem
+dtls_setup = actpass
+ice_support = yes
+rtcp_mux = yes
+
+[{{extension}}-auth]
+type = auth
+auth_type = userpass
+username = {{extension}}
+password = {{password}}
+
+[{{extension}}]
+type = aor
+max_contacts = 2
+remove_existing = yes
+{{/extensions}}
