@@ -1,0 +1,6 @@
+=== docker volume ls (UCGI scope) ===
+DRIVER    VOLUME NAME
+local     ucgi_asterisk-config
+local     ucgi_db-data
+local     ucgi_midpoint-home
+local     ucgi_midpoint-pg-data

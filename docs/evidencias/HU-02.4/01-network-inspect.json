@@ -1,0 +1,61 @@
+[
+    {
+        "Name": "ucgi-net",
+        "Id": "e37f9f7bfe5420eea5d1fae7ff5a7541490f7f5f7d65d52046cee0395765ae3d",
+        "Created": "2026-06-15T03:00:48.68005915Z",
+        "Scope": "local",
+        "Driver": "bridge",
+        "EnableIPv4": true,
+        "EnableIPv6": false,
+        "IPAM": {
+            "Driver": "default",
+            "Options": null,
+            "Config": [
+                {
+                    "Subnet": "172.18.0.0/16",
+                    "Gateway": "172.18.0.1"
+                }
+            ]
+        },
+        "Internal": false,
+        "Attachable": false,
+        "Ingress": false,
+        "ConfigFrom": {
+            "Network": ""
+        },
+        "ConfigOnly": false,
+        "Containers": {
+            "498188250a3c3f17410fcd2e62bc1b52c548524faf4b126410ad0f5fdd4b0ef8": {
+                "Name": "ucgi-db",
+                "EndpointID": "7e5ba15c89da0abe4485cf00fe6fbf1f9972719e3452a4eede680c8865f1eff1",
+                "MacAddress": "b6:f3:1c:8e:72:32",
+                "IPv4Address": "172.18.0.2/16",
+                "IPv6Address": ""
+            },
+            "6ac514033eb1fe52a6a31659e9ab69abc60d34c9e91007e3b437003062bf15f4": {
+                "Name": "ucgi-midpoint-db",
+                "EndpointID": "5aff9c22e0552299ef69139ede9a8ffc4c610ac6f8fe4df70e2f7592d2486ec1",
+                "MacAddress": "96:94:65:a6:ca:4c",
+                "IPv4Address": "172.18.0.3/16",
+                "IPv6Address": ""
+            },
+            "c49f9336b33f1f7314795cf432ded849ebe8246980643a7a6c55ca31d3cb61fe": {
+                "Name": "ucgi-asterisk",
+                "EndpointID": "2d8e2706666e46ef49fdd6ecc5e478eeaed829f6850143232ef0f5bd51bbdda9",
+                "MacAddress": "4e:ec:e3:da:50:1a",
+                "IPv4Address": "172.18.0.4/16",
+                "IPv6Address": ""
+            }
+        },
+        "Options": {
+            "com.docker.network.enable_ipv4": "true",
+            "com.docker.network.enable_ipv6": "false"
+        },
+        "Labels": {
+            "com.docker.compose.config-hash": "f66c157cd2d0dad25eb6e1ff27804cf3bcec69c00a1af8c216f764174a2422bc",
+            "com.docker.compose.network": "ucgi-net",
+            "com.docker.compose.project": "ucgi",
+            "com.docker.compose.version": "2.40.0"
+        }
+    }
+]

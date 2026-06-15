@@ -1,0 +1,75 @@
+=== Test de persistencia HU-02.4 — 2026-06-15T03:02:03Z ===
+
+Procedimiento:
+1. Insertar fila marker en crm.users (email=hu-02.4-persistence@ucgi.local)
+2. Tocar archivo marker dentro del volumen asterisk-config (/var/lib/asterisk/HU-02.4-marker.txt)
+3. docker compose down (sin -v) — DEBE conservar volumes
+4. docker compose up
+5. SELECT y ls confirman supervivencia
+Enter password: ERROR 1045 (28000): Access denied for user 'root'@'localhost' (using password: NO)
+-rw-r--r-- 1 root root 32 Jun 15 03:02 /var/lib/asterisk/HU-02.4-marker.txt
+=== PRE-DOWN SELECT ===
++----+-----------+--------------------------------+--------+--------------------------+---------------------+
+| id | username  | email                          | role   | full_name                | created_at          |
++----+-----------+--------------------------------+--------+--------------------------+---------------------+
+|  4 | hu024test | hu-02.4-persistence@ucgi.local | AGENTE | HU-02.4 Persistence Test | 2026-06-15 03:02:51 |
++----+-----------+--------------------------------+--------+--------------------------+---------------------+
+
+=== compose down (SIN -v) ===
+ Container ucgi-asterisk  Stopping
+ Container ucgi-db  Stopping
+ Container ucgi-midpoint-db  Stopping
+ Container ucgi-asterisk  Stopped
+ Container ucgi-asterisk  Removing
+ Container ucgi-asterisk  Removed
+ Container ucgi-midpoint-db  Stopped
+ Container ucgi-midpoint-db  Removing
+ Container ucgi-midpoint-db  Removed
+ Container ucgi-db  Stopped
+ Container ucgi-db  Removing
+ Container ucgi-db  Removed
+ Network ucgi-net  Removing
+ Network ucgi-net  Removed
+
+=== volumes after down (deben sobrevivir) ===
+ucgi_asterisk-config
+ucgi_db-data
+ucgi_midpoint-home
+ucgi_midpoint-pg-data
+
+=== containers after down (deben estar 0) ===
+NAMES     STATUS
+
+=== compose up de nuevo ===
+ Network ucgi-net  Creating
+ Network ucgi-net  Created
+ Container ucgi-midpoint-db  Creating
+ Container ucgi-db  Creating
+ Container ucgi-asterisk  Creating
+ Container ucgi-db  Created
+ Container ucgi-midpoint-db  Created
+ Container ucgi-asterisk  Created
+ Container ucgi-midpoint-db  Starting
+ Container ucgi-asterisk  Starting
+ Container ucgi-db  Starting
+ Container ucgi-db  Started
+ Container ucgi-midpoint-db  Started
+ Container ucgi-asterisk  Started
+NAMES              STATUS
+ucgi-asterisk      Up 17 seconds (healthy)
+ucgi-midpoint-db   Up 18 seconds (healthy)
+ucgi-db            Up 18 seconds (healthy)
+
+=== POST-UP SELECT (mismo marker, mismo id) ===
++----+-----------+--------------------------------+--------+--------------------------+---------------------+
+| id | username  | email                          | role   | full_name                | created_at          |
++----+-----------+--------------------------------+--------+--------------------------+---------------------+
+|  4 | hu024test | hu-02.4-persistence@ucgi.local | AGENTE | HU-02.4 Persistence Test | 2026-06-15 03:02:51 |
++----+-----------+--------------------------------+--------+--------------------------+---------------------+
+
+=== POST-UP asterisk-config marker ===
+-rw-r--r-- 1 root root 32 Jun 15 03:02 /var/lib/asterisk/HU-02.4-marker.txt
+created at 2026-06-15T03:02:03Z
+
+=== RESULTADO ===
+Ambos datos sobrevivieron al down/up sin -v: persistencia validada.

@@ -1,0 +1,6 @@
+=== docker volume inspect ucgi_db-data ===
+Name: ucgi_db-data
+Driver: local
+Mountpoint: /var/lib/docker/volumes/ucgi_db-data/_data
+Created: 2026-06-14T23:47:22Z
+Labels: map[com.docker.compose.config-hash:4dadfdd88bad50c547730162c636c2f91aa66eeb0e5673157572f4a0427166ae com.docker.compose.project:ucgi com.docker.compose.version:2.40.0 com.docker.compose.volume:db-data]

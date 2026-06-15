@@ -255,19 +255,40 @@ services:
     depends_on:
       - prometheus
 
+# ===== Networking =====
+# Red bridge dedicada para todo el stack UCGI. Todos los servicios joineen
+# explícitamente ucgi-net y ninguno usa la red `default` de compose.
+# Aporta:
+#   - Aislamiento (ISO 27001 A.13.1.1): solo se exponen al host los puertos
+#     declarados en cada servicio; el resto del tráfico inter-service nunca
+#     toca la red del host.
+#   - Resolución por nombre: dentro de la red, "db", "asterisk", "midpoint",
+#     etc. se resuelven al hostname del servicio sin DNS externo.
+#   - Subnet propia (172.18.0.0/16 por defecto en Docker), no compartida con
+#     otros proyectos del developer.
 networks:
   ucgi-net:
     name: ucgi-net
     driver: bridge
 
+# ===== Volúmenes nombrados =====
+# Persistencia de datos entre `down`/`up`. Mantener TODOS los servicios con
+# estado persistente apuntando a un named volume — bind mounts solo para
+# config-as-code (read-only desde el repo).
+#
+# Convención de naming: <recurso>-<rol>. El proyecto compose les añade el
+# prefijo "ucgi_" automáticamente (ver `docker volume ls`).
+#
+# Para vaciar TODO (datos del lab): `docker compose down -v` o
+# `docker volume rm $(docker volume ls -q --filter name=ucgi_)`.
 volumes:
-  db-data:
-  midpoint-home:
-  midpoint-pg-data:
-  asterisk-config:
-  sonar-data:
-  sonar-logs:
-  sonar-extensions:
-  sonar-pg-data:
-  prometheus-data:
-  grafana-data:
+  db-data:           # MariaDB — datos del CRM (crm.*)
+  midpoint-home:     # midPoint — keystore, configuración runtime
+  midpoint-pg-data:  # PostgreSQL del repository de midPoint
+  asterisk-config:   # Asterisk — astdb, voicemail, grabaciones
+  sonar-data:        # SonarQube — base de análisis
+  sonar-logs:        # SonarQube — logs runtime
+  sonar-extensions:  # SonarQube — plugins instalados
+  sonar-pg-data:     # PostgreSQL de SonarQube
+  prometheus-data:   # Prometheus — TSDB (retención 7d)
+  grafana-data:      # Grafana — dashboards, usuarios, datasources
