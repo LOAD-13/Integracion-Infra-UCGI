@@ -88,32 +88,30 @@ services:
       start_period: 180s
 
   # ===== Asterisk (PBX) =====
+  # Configs vienen baked en la imagen desde infra/asterisk/configs/.
+  # asterisk-config persiste el runtime state (astdb, voicemail, recordings).
+  # Puerto 5061/TLS y 8089/WSS se activan en HU-07.2 cuando existan certs.
   asterisk:
     build:
       context: ./infra/asterisk
       dockerfile: Dockerfile
+    image: ucgi/asterisk:20.20.0
     container_name: ucgi-asterisk
     restart: unless-stopped
     volumes:
-      - asterisk-config:/etc/asterisk
-      - ./infra/asterisk/configs:/etc/asterisk/templates:ro
-      - ./infra/asterisk/tls:/etc/asterisk/keys:ro
+      - asterisk-config:/var/lib/asterisk
     ports:
-      - "5060:5060/udp"        # SIP plano (dev)
-      - "5061:5061/tcp"        # SIP-TLS (prod)
-      - "8089:8089/tcp"        # WSS (WebRTC)
-      - "5038:5038/tcp"        # AMI (interno; se restringe en prod)
+      - "5060:5060/udp"                # SIP plano (dev / softphones internos)
+      - "8088:8088/tcp"                # WebSocket plano (SIP.js sobre ws://)
       - "10000-10100:10000-10100/udp"  # RTP
     networks:
       - ucgi-net
-    depends_on:
-      db:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "asterisk", "-rx", "core show version"]
-      interval: 15s
-      timeout: 5s
-      retries: 6
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
   # ===== Microservicio de integración (Spring Boot) =====
   integration-api:
