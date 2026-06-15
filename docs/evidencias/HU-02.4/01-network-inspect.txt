@@ -1,0 +1,10 @@
+Name:       ucgi-net
+Driver:     bridge
+Scope:      local
+Subnet:     172.18.0.0/16
+Gateway:    172.18.0.1
+Internal:   False
+Containers conectados (3):
+  - ucgi-db                    IPv4=172.18.0.2/16       MAC=b6:f3:1c:8e:72:32
+  - ucgi-midpoint-db           IPv4=172.18.0.3/16       MAC=96:94:65:a6:ca:4c
+  - ucgi-asterisk              IPv4=172.18.0.4/16       MAC=4e:ec:e3:da:50:1a
