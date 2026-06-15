@@ -1,0 +1,10 @@
+HTTP/2 200 
+server: nginx
+date: Mon, 15 Jun 2026 06:50:35 GMT
+content-type: text/plain
+content-length: 3
+strict-transport-security: max-age=31536000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: DENY
+referrer-policy: strict-origin-when-cross-origin
+
