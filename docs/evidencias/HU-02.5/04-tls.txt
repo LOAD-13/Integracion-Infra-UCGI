@@ -1,0 +1,11 @@
+Server certificate
+subject=C = PE, ST = Lima, L = Lima, O = UCGI Lab, OU = Web, CN = localhost
+issuer=C = PE, ST = Lima, L = Lima, O = UCGI Lab, OU = DevOps, CN = UCGI Lab Root CA
+New, TLSv1.3, Cipher is TLS_AES_256_GCM_SHA384
+Verify return code: 21 (unable to verify the first certificate)
+    Protocol  : TLSv1.3
+    Cipher    : TLS_AES_256_GCM_SHA384
+    Verify return code: 21 (unable to verify the first certificate)
+    Protocol  : TLSv1.3
+    Cipher    : TLS_AES_256_GCM_SHA384
+    Verify return code: 21 (unable to verify the first certificate)
