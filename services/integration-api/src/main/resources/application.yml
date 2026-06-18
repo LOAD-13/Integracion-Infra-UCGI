@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: integration-api
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  # HU-03.1: las auto-config de DataSource/JPA/Security se habilitarán en
+  # HU-03.2 (entidad SipExtension) y HU-03.5 (filtro JWT). Mientras tanto las
+  # excluimos para que el contenedor arranque sin BD y sin auth.
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
+      - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+
+server:
+  port: 8081
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when-authorized
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+info:
+  app:
+    name: ${spring.application.name}
+    description: Microservicio intermediario UCGI (midPoint ↔ Asterisk)
+    version: 0.1.0-SNAPSHOT
+
+logging:
+  level:
+    root: INFO
+    com.ucgi.integrationapi: DEBUG
