@@ -18,15 +18,16 @@ Expone una API REST que midPoint consume para provisionar extensiones SIP, recar
 | Asterisk (S3+) | asterisk-java (AMI client) |
 | Tests | JUnit 5 + Testcontainers MariaDB + WireMock |
 
-## Endpoints en HU-03.1
+## Endpoints
 
-| Método | Ruta | Qué hace |
-| --- | --- | --- |
-| GET | `/actuator/health` | Liveness/readiness (200 con `{"status":"UP"}`) |
-| GET | `/actuator/info` | Metadatos del build |
-| GET | `/actuator/prometheus` | Métricas JVM en formato Prometheus |
+| Método | Ruta | HU | Qué hace |
+| --- | --- | --- | --- |
+| GET | `/actuator/health` | 03.1 | Liveness/readiness (200 con `{"status":"UP"}`) |
+| GET | `/actuator/info` | 03.1 | Metadatos del build |
+| GET | `/actuator/prometheus` | 03.1 | Métricas JVM en formato Prometheus |
+| POST | `/api/v1/sip-extensions` | 03.2 | Alta de extensión SIP. Body `{username, password, extensionNumber, displayName}`. Devuelve 201 + Location. Errores: 400 (Bean Validation), 404 (username no existe), 409 (extension o user duplicados). |
 
-Los endpoints de negocio se añaden en HU-03.2 (`POST /api/v1/sip-extensions`), HU-03.5 (`POST /api/v1/auth/login`) y HU-03.6 (`GET /api/v1/cdr`).
+Los endpoints futuros: HU-03.5 (`POST /api/v1/auth/login`) y HU-03.6 (`GET /api/v1/cdr`).
 
 ## Cómo levantar localmente
 
@@ -49,4 +50,6 @@ El `Dockerfile` es multi-stage (`temurin:17-jdk` → `temurin:17-jre`), corre co
 ## Notas de configuración
 
 - Puerto fijo `:8081` (PLAN.md §3.1).
-- En HU-03.1 se excluyen las auto-config de DataSource, JPA y Security para que el contenedor arranque sin BD ni auth. Se reactivan progresivamente en HU-03.2 (JPA) y HU-03.5 (Security+JWT) eliminando las entradas correspondientes en `spring.autoconfigure.exclude` de `application.yml`.
+- A partir de HU-03.2 se reactivan DataSource y JPA (las excludes se redujeron a Security, que vuelve en HU-03.5).
+- `hibernate.ddl-auto=validate` — las tablas vienen creadas por `infra/mariadb/init/*.sql`; Hibernate solo verifica que las entidades mapeen columnas existentes. Si una entity tiene una `@Column` que no existe en BD, el contenedor falla al arrancar (intencionado, fail-fast).
+- Tests con Testcontainers MariaDB: los init SQL están duplicados en `src/test/resources/db/init/` para que el módulo sea autocontenido (ver README de esa carpeta).

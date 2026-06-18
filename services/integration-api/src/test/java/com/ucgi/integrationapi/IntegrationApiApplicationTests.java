@@ -1,10 +1,8 @@
 package com.ucgi.integrationapi;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
-class IntegrationApiApplicationTests {
+class IntegrationApiApplicationTests extends AbstractIntegrationTest {
 
     @Test
     void contextLoads() {
