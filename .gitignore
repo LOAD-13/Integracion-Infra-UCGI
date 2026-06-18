@@ -20,11 +20,11 @@ pnpm-debug.log*
 # ===== Java / Maven =====
 target/
 *.class
-*.jar
 *.war
 *.ear
-.mvn/
-!.mvn/wrapper/maven-wrapper.properties
+# Solo ignoramos el binario del wrapper; el resto de .mvn/ se versiona
+# (.mvn/wrapper/maven-wrapper.properties define la URL del distribution)
+.mvn/wrapper/maven-wrapper.jar
 hs_err_pid*.log
 
 # ===== IDEs y editores =====
