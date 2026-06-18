@@ -1,0 +1,4 @@
+matplotlib>=3.7
+pandas>=2.0
+pytest>=7.0
+speedtest-cli>=2.1
