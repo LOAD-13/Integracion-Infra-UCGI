@@ -62,8 +62,22 @@ info:
     description: Microservicio intermediario UCGI (midPoint ↔ Asterisk)
     version: 0.1.0-SNAPSHOT
 
+asterisk:
+  config-path: ${ASTERISK_CONFIG_PATH:/etc/asterisk/dynamic.d/pjsip.conf}
+  ami:
+    host: ${ASTERISK_AMI_HOST:asterisk}
+    port: ${ASTERISK_AMI_PORT:5038}
+    user: ${ASTERISK_AMI_USER:ucgi-ami}
+    secret: ${ASTERISK_AMI_SECRET:changeme-ami}
+    timeout-ms: 5000
+  reload:
+    max-attempts: 3
+    initial-backoff-ms: 200
+    backoff-multiplier: 2.0
+
 logging:
   level:
     root: INFO
     com.ucgi.integrationapi: DEBUG
     org.hibernate.SQL: INFO
+    org.asteriskjava: WARN

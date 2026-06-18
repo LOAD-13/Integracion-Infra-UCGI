@@ -25,11 +25,11 @@ class PjsipConfigWriterTest {
     void rendersOnlyHeader_whenNoExtensions() {
         String out = writer.renderFrom(List.of());
 
+        // global y transports están en pjsip.conf baked, no en el include dinámico
         assertThat(out)
-                .contains("[global]")
-                .contains("[transport-udp]")
-                .contains("[transport-ws]")
                 .contains("Total extensiones activas: 0")
+                .doesNotContain("[global]")
+                .doesNotContain("[transport-udp]")
                 .doesNotContain("type=endpoint")
                 .doesNotContain("type=auth")
                 .doesNotContain("type=aor");
@@ -108,7 +108,7 @@ class PjsipConfigWriterTest {
     }
 
     private static Template loadTemplate() {
-        try (InputStream in = new ClassPathResource("templates/pjsip.conf.mustache").getInputStream()) {
+        try (InputStream in = new ClassPathResource("templates/pjsip-dynamic.conf.mustache").getInputStream()) {
             return Mustache.compiler()
                     .escapeHTML(false)
                     .compile(new String(in.readAllBytes(), StandardCharsets.UTF_8));

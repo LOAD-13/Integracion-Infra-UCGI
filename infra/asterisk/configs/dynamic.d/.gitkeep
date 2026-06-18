@@ -1,0 +1,4 @@
+# Placeholder para que el directorio /etc/asterisk/dynamic.d/ exista en la
+# imagen baked. El microservicio integration-api lo monta como volumen
+# compartido (`asterisk-dynamic`) y escribe `pjsip.conf` aquí desde
+# PjsipConfigWriter.writeTo(). Asterisk lo carga vía `#tryinclude` en pjsip.conf.
