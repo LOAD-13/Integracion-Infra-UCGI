@@ -3,15 +3,35 @@ spring:
     name: integration-api
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
-  # HU-03.1: las auto-config de DataSource/JPA/Security se habilitarán en
-  # HU-03.2 (entidad SipExtension) y HU-03.5 (filtro JWT). Mientras tanto las
-  # excluimos para que el contenedor arranque sin BD y sin auth.
+  # HU-03.5 reactivará SecurityAutoConfiguration cuando llegue el filtro JWT.
   autoconfigure:
     exclude:
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
-      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
       - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
       - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mariadb://db:3306/crm}
+    username: ${SPRING_DATASOURCE_USERNAME:ucgi_app}
+    password: ${SPRING_DATASOURCE_PASSWORD:changeme-app}
+    driver-class-name: org.mariadb.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 5000
+      pool-name: ucgi-api-pool
+
+  jpa:
+    open-in-view: false
+    # validate: las tablas las crea infra/mariadb/init/*.sql; Hibernate solo verifica.
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MariaDBDialect
+        jdbc:
+          time_zone: UTC
+        format_sql: false
+    show-sql: false
 
 server:
   port: 8081
@@ -46,3 +66,4 @@ logging:
   level:
     root: INFO
     com.ucgi.integrationapi: DEBUG
+    org.hibernate.SQL: INFO
