@@ -1,0 +1,19 @@
+# Caché de Python e intérprete
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Entornos virtuales locales
+.venv/
+venv/
+env/
+
+# Output del speedtest u otras herramientas locales
+*.tmp

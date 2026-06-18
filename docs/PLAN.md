@@ -31,6 +31,10 @@ El resultado del lab será un prototipo funcional levantado con `docker-compose 
 | 3 | TLS SIP vs puerto 5060 plano | **Puerto 5061 SIP-TLS con certificados autogenerados** para la prueba final. El 5060 queda solo para desarrollo. |
 | 4 | SonarQube sobre `.conf` de Asterisk | SonarQube apunta al **código Java del microservicio** y al **TypeScript del CRM** — métricas reales de mantenibilidad y fiabilidad. |
 | 5 | Recurso "LDAP" fantasma | **Solo conector SQL** en midPoint (no se añade OpenLDAP). |
+| 6 | Códecs habilitados en Asterisk | `opus, ulaw, alaw, gsm, g729` en `pjsip.conf.template`. El cuarteto `ulaw/alaw/gsm/g729` es para la defensa de capacidad (los 3 grupos que pidió el profe en la clase 2026-06-16); `opus` es obligatorio por RFC de WebRTC. |
+| 7 | Cómo se demuestra capacidad VoIP | Dos herramientas complementarias: calculadora Tkinter standalone en `tools/voip-bw-calculator/` (defensa pedagógica) + servicio `ucgi-shaper` en compose con Linux `tc` (defensa funcional con shaping en runtime y downgrade automático de códec coordinado por `integration-api`). Detalle en `docs/iso/calculo-capacidad-voip.md`. |
+| 8 | Segmentación de red | `ucgi-net` se subdivide en tres networks Docker — `ucgi-frontend`, `ucgi-voip`, `ucgi-backend` — para materializar la separación lógica de tráfico equivalente a ETH0/ETH1/ETH2. `nginx` e `integration-api` se unen a dos networks por diseño. Cumple ISO 27001 A.13.1.1 de forma palpable. |
+| 9 | SIP Trunk externo | **Pospuesto a Sprint 5 — HU-09.7 (IUDCYGI-165)**. Estrategia de dos planes: **Plan A prioritario** = provider real gratuito (sip.linphone.org / CallCentric / VoIP.ms). **Plan B fallback** = segundo Asterisk `asterisk-provider` simulando ITSP localmente. Se intenta Plan A; si la red del salón o el provider fallan durante la demo se cae a Plan B sin penalizar. Hasta su implementación, en el diagrama el SIP Trunk aparece solo como extremo externo gris/punteado. |
 
 ### 2.2 Decisiones de producto y stack
 
@@ -378,13 +382,16 @@ Cada Épica, HU y Subtask incluirá en su descripción:
   - *DoD:* requests sin token → 401; con token válido → 200; flujo documentado.
 - **HU-03.6** Como Integrador, quiero el endpoint `GET /api/v1/cdr`, para que el CRM lea el histórico de llamadas.
   - *DoD:* paginación funcional, filtros por fecha/agente, contract test.
+- **HU-03.7** *(añadida 2026-06-16)* Como Integrador, quiero que `integration-api` consulte el endpoint `/status` de `ucgi-shaper` cada 10 s y reescriba `pjsip.conf` según el BW disponible (downgrade automático Nivel 1), para que las llamadas nuevas se inicien con el códec óptimo.
+  - *Subtasks:* cliente HTTP al shaper, lógica de umbrales (≥30 Mbps full, 10–29 mixto, <10 g729/gsm priorizado), `PjsipConfigWriter` reutilizado, `pjsip reload` vía AMI.
+  - *DoD:* test integración Testcontainers con shaper mock; al cambiar BW a 5 Mbps, `pjsip.conf` se reescribe en ≤ 15 s; nueva llamada negocia G.729; evidencia en `docs/evidencias/HU-03.7/`.
 
 #### EP-04 — CRM Frontend con WebRTC
 - **HU-04.1** Como agente, quiero una pantalla de login que autentique contra midPoint, para acceder al CRM.
   - *DoD:* credenciales inválidas → mensaje; válidas → token guardado en memoria (no localStorage) + redirect.
 - **HU-04.2** Como agente, quiero un panel con softphone WebRTC registrado a Asterisk, para llamar desde el navegador.
-  - *Subtasks:* integrar `sip.js`, manejar estados `Registered/Unregistered`, mostrar extensión propia.
-  - *DoD:* el softphone aparece como `Registered` y se puede llamar a otra extensión.
+  - *Subtasks:* integrar `sip.js`, manejar estados `Registered/Unregistered`, mostrar extensión propia, **campo de marcación libre** (permite teclear extensiones internas 1XX y, cuando exista el SIP trunk en S5, prefijos de salida).
+  - *DoD:* el softphone aparece como `Registered` y se puede llamar a otra extensión interna. Campo de marcación libre acepta dígitos arbitrarios sin validación rígida (deja preparado el ground para llamadas externas en S5).
 - **HU-04.3** Como agente, quiero CRUD de clientes (lista, detalle, alta, baja, edición).
   - *DoD:* las 4 operaciones funcionales contra `/api/v1/clients`; tests Vitest pasan.
 - **HU-04.4** Como agente, quiero buscar y filtrar clientes por nombre/teléfono/asignación.
@@ -420,6 +427,9 @@ Cada Épica, HU y Subtask incluirá en su descripción:
   - *DoD:* flujo "login → ver cliente → llamar → ver CDR" pasa en CI.
 - **HU-06.5** Como QA, quiero la tabla de mapeo ISO 25010 en `docs/iso/iso-25010-mapping.md`.
   - *DoD:* tabla con las 8 características (Funcionalidad, Eficiencia, Compatibilidad, Usabilidad, Fiabilidad, Seguridad, Mantenibilidad, Portabilidad) con evidencia concreta por cada una.
+- **HU-06.6** *(añadida 2026-06-16)* Como QA, quiero el plan de pruebas formal en `docs/iso/plan-de-pruebas.md`, siguiendo la estructura dictada por el profesor en clase.
+  - *Subtasks:* secciones de Alcance, Roles y recursos, Diseño y suites (caja negra / caja blanca / basadas en experiencia), Verificación vs Validación, Trazabilidad, Criterios de entrada/salida.
+  - *DoD:* documento completo, links desde §10 del PLAN.md, tabla de trazabilidad HU ↔ test ↔ evidencia.
 
 #### EP-07 — Seguridad y cumplimiento (ISO 27001)
 - **HU-07.1** Como QA, quiero certificados TLS autogenerados (CA + server) en `infra/asterisk/tls/` y `infra/nginx/certs/`.
@@ -436,16 +446,28 @@ Cada Épica, HU y Subtask incluirá en su descripción:
   - *DoD:* test automatizado o grep en logs no devuelve passwords; filtro de logback configurado.
 - **HU-07.7** Como QA, quiero la tabla de mapeo ISO 27001 en `docs/iso/iso-27001-mapping.md`.
   - *DoD:* tabla con al menos 10 controles (A.5.x, A.8.x, A.13.x) con evidencia concreta por cada uno.
+- **HU-07.8** *(añadida 2026-06-16)* Como QA, quiero segmentar `ucgi-net` en **tres networks Docker dedicadas** (`ucgi-frontend`, `ucgi-voip`, `ucgi-backend`) para materializar el control ISO 27001 A.13.1.1 (controles de red) de forma palpable.
+  - *Subtasks:* editar `docker-compose.yml`, mover servicios a la network correspondiente, `nginx` y `integration-api` con membresía dual, retest del stack end-to-end, documento `docs/runbooks/segmentacion-red.md`.
+  - *DoD:* `docker network inspect` lista las 3 networks con sus servicios; stack levanta verde; CRM ↔ API ↔ Asterisk ↔ DB funcionando; diagrama C4 actualizado con las 3 networks visibles.
 
 #### EP-08 — Observabilidad y pruebas de carga
 - **HU-08.1** Como QA, quiero Prometheus scrapeando integration-api, asterisk-exporter y mariadb-exporter.
   - *DoD:* `up{job=...}=1` para los 3; retención 7 días.
-- **HU-08.2** Como QA, quiero Grafana con un dashboard "UCGI Overview" provisionado.
-  - *DoD:* panel muestra: requests/s API, llamadas activas, latencia, conexiones DB; al menos 6 paneles.
+- **HU-08.2** Como QA, quiero Grafana con un dashboard "UCGI Overview" provisionado, **incluyendo dos paneles específicos exigidos por la rúbrica**:
+  - Panel **"Capacidad y umbral en vivo"** — BW del shaper, llamadas teóricas según códec dominante, llamadas activas, línea de umbral roja.
+  - Panel **"Códec por sesión"** — tabla viva con extensión origen → destino → códec negociado → MOS estimado → jitter → packet loss; coloreado por códec.
+  - Panel **"SLI/SLO"** — visualización de los SLOs declarados en §9.1, con verde/amarillo/rojo según cumplimiento.
+  - *DoD:* dashboard provisionado con al menos 8 paneles (los 3 anteriores + requests/s API + llamadas activas + latencia + conexiones DB + uptime); umbrales pintados; alertas asociadas a HU-08.4.
 - **HU-08.3** Como QA, quiero escenarios SIPp UAC/UAS para pruebas de carga, para evidenciar Fiabilidad/Eficiencia (ISO 25010).
   - *DoD:* script `run-stress.sh` ejecuta 50 llamadas concurrentes, exporta CSV de latencias; resultado documentado.
 - **HU-08.4** Como QA, quiero alertas mínimas en Prometheus (caída de servicio, error rate > 5%).
   - *DoD:* `alerts.yml` con 3 reglas; al apagar `integration-api` la alerta dispara en Grafana.
+- **HU-08.5** *(añadida 2026-06-16)* Como QA, quiero un servicio `ucgi-shaper` en docker-compose que limite el ancho de banda del tráfico VoIP en runtime mediante `tc` (Linux Traffic Control), para materializar la propuesta del profesor "creo un router/firewall que fije ancho de banda como si fuera cliente, lo saturo y mido hasta dónde soporta".
+  - *Subtasks:* `services/ucgi-shaper/Dockerfile` (alpine + iproute2 + python3 + flask), `api.py` con `POST /limit`, `GET /status`, `GET /metrics`; `shaper-control.sh` que ejecuta `tc qdisc add dev eth0 root tbf rate <X>mbit`; entrada en compose con `cap_add: NET_ADMIN` y puerto 9100; integración con `prometheus.yml`.
+  - *DoD:* `curl -X POST http://localhost:9100/limit -d '{"mbps":5}'` aplica el shaping en <2 s; `GET /metrics` lo expone; Grafana lo grafica; demo del §4 del documento `docs/iso/calculo-capacidad-voip.md` reproducible.
+- **HU-08.6** *(añadida 2026-06-16)* Como QA, quiero una calculadora interactiva de capacidad VoIP en `tools/voip-bw-calculator/` (Python + Tkinter, standalone), para defensa pedagógica en la presentación del jueves 2026-06-18 y como anexo del informe.
+  - *Subtasks:* `calculator.py` (GUI Tkinter con sliders BW + holgura, tabla por códec, gráfica matplotlib embebido); `bw_calc.py` (fórmulas testeable); `codec_data.py` (constantes); `tests/test_bw_calc.py` (pytest); `requirements.txt`; `README.md`. Copia adicional en `S15/Calculator/` para uso académico.
+  - *DoD:* `python calculator.py` levanta GUI funcional sin necesitar Docker; tests pytest en verde; gráfica refresca al mover los sliders; tabla muestra G.711/GSM/G.729/Opus con valores correctos (G.711 a 50 Mbps con 30% holgura debe dar 200 ± 1).
 
 #### EP-09 — Documentación y entrega final
 - **HU-09.1** Como equipo, queremos el informe en prosa final.
@@ -461,6 +483,10 @@ Cada Épica, HU y Subtask incluirá en su descripción:
   - *DoD:* sección del informe + commits ya firmados acordes; coherencia entre commits y reparto.
 - **HU-09.6** Como equipo, queremos el repo público y un tag `v1.0-entrega`.
   - *DoD:* tag firmado, repo público, README final con instrucciones reproducibles.
+- **HU-09.7** *(añadida 2026-06-16)* Como Integrador, quiero un **SIP Trunk operativo** para demostrar llamadas salientes "al mundo exterior" en la entrega final, materializando el escenario que el profesor planteó sobre el uso de G.729 en el dominio externo vs ALAW/ULAW interno.
+  - *Estrategia:* **Plan A prioritario** = provider gratuito real (sip.linphone.org / CallCentric / VoIP.ms). **Plan B fallback** = `asterisk-provider` en docker-compose simulando ITSP. Decisión final en S5 según fiabilidad de la red del salón.
+  - *Subtasks:* registro provider, `pjsip.conf` con bloque `[provider-out]` (`allow = g729,ulaw`), patrón `_9XXXXXXXXX` en `extensions.conf`, captura Wireshark con re-INVITE, runbook `docs/runbooks/sip-trunk.md`, actualización del diagrama C4 (trunk pasa de punteado gris a línea sólida).
+  - *DoD:* llamada saliente desde CRM al número de prueba (Plan A) o al `9000` del asterisk-provider (Plan B); CDR persistido; captura Wireshark; runbook; plan elegido documentado en informe.
 
 ### 7.3 Política de DoD transversal (aplica a cualquier HU)
 
@@ -502,19 +528,44 @@ Antes de cerrar cualquier HU se debe cumplir:
 | Mantenibilidad | Sonar rating ≥ A, deuda técnica < 5% | Reporte Sonar |
 | Portabilidad | `docker-compose up --build` reproducible en otro host | Runbook `levantar-entorno.md` |
 
+### 9.1 SLIs y SLOs explícitos
+
+Tabla canónica que se usa en la defensa cuando el profesor pregunta *"¿cuáles son sus métricas?"* o *"¿cuáles son sus umbrales?"*. SLI = Service Level Indicator (la métrica). SLO = Service Level Objective (el umbral declarado).
+
+| Componente | SLI (qué se mide) | SLO (umbral objetivo) | Cómo se mide |
+|------------|-------------------|------------------------|--------------|
+| `integration-api` | Latencia p95 de `POST /api/v1/sip-extensions` | **< 200 ms** | Prometheus histogram (Spring Actuator) |
+| `integration-api` | Disponibilidad (`/actuator/health` 200) | **≥ 99% / 1h** | Prometheus `up{job=integration-api}` |
+| `asterisk` | MOS promedio de llamadas activas | **≥ 4.0** | RTCP parseado por `asterisk_exporter` |
+| `asterisk` | Packet loss en RTP saliente | **< 1%** | SIPp CSV + RTCP stats |
+| `crm` | Time-to-interactive del login | **< 2 s** | Lighthouse + Playwright trace |
+| Llamada extremo a extremo | Tiempo de setup (INVITE → 200 OK) | **< 500 ms** | Headers SIP timestamped |
+| `midpoint` | Latencia p95 de provisioning de extensión | **< 5 s** | Logs midPoint + Prometheus |
+| `ucgi-shaper` | Llamadas activas vs capacidad teórica del códec actual | **activas ≤ 70% de teóricas** (línea roja del panel) | Panel Grafana "Capacidad y umbral" |
+
+Los SLOs se pintan en el dashboard "UCGI Overview" (HU-08.2 ampliada). Cualquier panel que exceda su SLO durante 5 minutos consecutivos dispara alerta Prometheus (HU-08.4).
+
 ---
 
-## 10. Plan de pruebas
+## 10. Plan de pruebas (resumen)
+
+> **El documento completo del plan de pruebas vive en `docs/iso/plan-de-pruebas.md`** (HU-06.6).
+> Esa estructura sigue literalmente la que el profesor dictó en la clase 2026-06-16: Alcance · Roles y recursos · Diseño y suites (caja negra / caja blanca / basadas en experiencia) · Verificación vs Validación · Trazabilidad · Criterios de entrada/salida. Lo que sigue es solo el resumen consolidado.
 
 ### 10.1 Pirámide
 - **Unitarias:** JUnit 5 (api) + Vitest (crm). Foco en mappings, validaciones, servicios.
 - **Integración:** Testcontainers (MariaDB real), MockMvc para controllers REST, Vitest + MSW para CRM.
 - **E2E:** Playwright contra entorno Docker arrancado.
-- **Carga:** SIPp (VoIP) + k6 contra API (opcional).
+- **Carga VoIP:** SIPp con escenarios UAC/UAS; complementado con el `ucgi-shaper` que limita BW en runtime para medir punto de degradación real.
+- **Carga API (opcional):** k6.
 - **Seguridad:** Trivy (imágenes), OWASP ZAP baseline (CRM).
-- **Aceptación manual:** checklist con el flujo del entregable (login → llamada → CDR).
+- **Aceptación manual:** checklist con el flujo del entregable (login → llamada → CDR → demo de shaping con downgrade automático).
 
-### 10.2 Quality gates en CI
+### 10.2 Verificación vs Validación
+- **Verificación** (¿construimos el producto correctamente?): SonarQube quality gate, lint, `mvn verify`, `npm test`, revisiones de PR. Aplicada durante el desarrollo.
+- **Validación** (¿construimos el producto correcto?): Playwright E2E, demo manual del §11, SIPp + shaper end-to-end. Aplicada con el sistema operando.
+
+### 10.3 Quality gates en CI
 - Cobertura Java ≥ 70%, TS ≥ 60%.
 - 0 issues "Bug" o "Vulnerability" en Sonar.
 - 0 CRITICAL en Trivy.
@@ -548,6 +599,9 @@ Antes de cerrar cualquier HU se debe cumplir:
 | WebRTC + certs autofirmados rechazado por navegador | Media | Alto | Aceptar excepción manual en demo + documentar en runbook; opcional: usar `mkcert` local. |
 | Sonar quality gate falla por deuda inicial | Baja | Bajo | Ajustar gate al perfil "Sonar way for new code only". |
 | Plazo ajustado | Alta | Alto | Sprint 5 incluye buffer; en Sprint 3 priorizar el flujo end-to-end mínimo (alta usuario → llamada) antes que features secundarias. |
+| `ucgi-shaper` necesita `NET_ADMIN` y `tc` operativo en kernel del host | Media | Medio | Docker añade la capability automáticamente con `cap_add`; verificar en host con `tc qdisc show`. Plan B: fallback a `iproute2` userspace o documentar limitación. |
+| Tkinter no instalado por defecto en algunas distros Python | Baja | Bajo | `apt install python3-tk` o `winget install Python.Python` desde web oficial (incluye tk). Documentado en `tools/voip-bw-calculator/README.md`. |
+| SIP Trunk (HU-09.7) pospuesto a S5 deja sin demo de llamada externa hasta el final | Media | Bajo | Decisión consciente (2026-06-16). El resto del sistema funciona sin trunk. Estrategia A/B: se intenta provider real, si falla se cae a `asterisk-provider` local. Ambos planes preparados en la última semana. |
 
 ---
 
