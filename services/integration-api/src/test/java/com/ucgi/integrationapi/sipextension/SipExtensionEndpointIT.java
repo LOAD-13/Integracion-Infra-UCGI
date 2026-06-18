@@ -7,9 +7,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ucgi.integrationapi.AbstractIntegrationTest;
+import com.ucgi.integrationapi.asterisk.AsteriskProvisioningService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
@@ -27,6 +29,11 @@ class SipExtensionEndpointIT extends AbstractIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    /** Reemplaza el provisioning real para que el listener post-commit no intente
+     *  conectarse a Asterisk durante los tests. */
+    @MockBean
+    private AsteriskProvisioningService provisioningService;
 
     @Test
     void createsExtension_201_andLocationHeader() throws Exception {

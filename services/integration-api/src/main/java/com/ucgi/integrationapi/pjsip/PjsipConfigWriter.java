@@ -34,7 +34,7 @@ import org.springframework.stereotype.Component;
 public class PjsipConfigWriter {
 
     private static final Logger log = LoggerFactory.getLogger(PjsipConfigWriter.class);
-    private static final String TEMPLATE_LOCATION = "classpath:templates/pjsip.conf.mustache";
+    private static final String TEMPLATE_LOCATION = "classpath:templates/pjsip-dynamic.conf.mustache";
 
     private final SipExtensionRepository repository;
     private final Template template;
