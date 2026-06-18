@@ -1,0 +1,45 @@
+;
+; pjsip.conf — generado por integration-api (UCGI)
+; NO editar a mano. Cualquier cambio se sobrescribe al regenerar.
+; Total extensiones activas: {{extensionCount}}
+;
+
+[global]
+type=global
+endpoint_identifier_order=username,ip
+user_agent=UCGI-Asterisk
+
+[transport-udp]
+type=transport
+protocol=udp
+bind=0.0.0.0:5060
+
+[transport-ws]
+type=transport
+protocol=ws
+bind=0.0.0.0:8088
+
+{{#extensions}}
+; ---------- Extension {{number}} ----------
+[{{number}}]
+type=endpoint
+context=internal
+disallow=all
+allow=opus,ulaw,alaw,gsm,g729
+auth={{number}}
+aors={{number}}
+transport=transport-udp
+webrtc=yes
+
+[{{number}}]
+type=auth
+auth_type=userpass
+username={{number}}
+password={{password}}
+
+[{{number}}]
+type=aor
+max_contacts=1
+remove_existing=yes
+
+{{/extensions}}
