@@ -1,4 +1,5 @@
-import { LogOut } from "lucide-react";
+import { Link } from "react-router-dom";
+import { LogOut, Users } from "lucide-react";
 import { useAuth } from "@/auth/useAuth";
 import { Softphone } from "@/components/softphone/Softphone";
 import { Button } from "@/components/ui/button";
@@ -42,10 +43,16 @@ export function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 text-sm text-muted-foreground sm:grid-cols-2">
-            <div className="rounded-md border bg-muted/20 p-4">
-              <p className="font-medium text-foreground">Clientes</p>
-              <p>Pendiente HU-04.3 (CRUD).</p>
-            </div>
+            <Link
+              to="/clients"
+              className="rounded-md border bg-primary/5 p-4 transition-colors hover:bg-primary/10"
+            >
+              <p className="flex items-center gap-2 font-medium text-foreground">
+                <Users aria-hidden="true" className="h-4 w-4" />
+                Clientes
+              </p>
+              <p>Listado, alta, edición y baja de la cartera.</p>
+            </Link>
             <div className="rounded-md border bg-muted/20 p-4">
               <p className="font-medium text-foreground">Histórico CDR</p>
               <p>Pendiente HU-04.5.</p>
