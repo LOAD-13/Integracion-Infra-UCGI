@@ -8,9 +8,9 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 /**
- * Mínima en HU-03.2: solo necesitamos resolver username → id para asociar
- * la extensión SIP. Las columnas adicionales (email, full_name, role, active,
- * password_hash, timestamps) se irán mapeando en HU-03.5 (auth) y HU-05.x.
+ * Mapeo extendido en HU-03.5: añadidos {@code passwordHash} y {@code role} para
+ * autenticación local. Campos restantes (email, full_name, active, timestamps)
+ * se mapearán cuando alguna HU los necesite (lazy mapping).
  */
 @Entity
 @Table(name = "users")
@@ -23,6 +23,12 @@ public class User {
     @Column(nullable = false, unique = true, length = 64)
     private String username;
 
+    @Column(name = "password_hash", length = 255)
+    private String passwordHash;
+
+    @Column(nullable = false, length = 16)
+    private String role;
+
     protected User() {
     }
 
@@ -32,5 +38,13 @@ public class User {
 
     public String getUsername() {
         return username;
+    }
+
+    public String getPasswordHash() {
+        return passwordHash;
+    }
+
+    public String getRole() {
+        return role;
     }
 }
