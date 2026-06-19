@@ -316,10 +316,12 @@ Hoy es jueves **2026-06-11**. Entrega: jueves **2026-07-02**. Total: 21 días na
 
 ## 7. Plan en JIRA (Épicas, HU, Subtasks, Sprints)
 
-Cada Épica, HU y Subtask incluirá en su descripción:
+Cada Épica, HU y Subtask incluye en su descripción:
 - **Contexto / objetivo**
 - **Criterios de aceptación**
 - **DoD (Definition of Done)** — checklist explícita que debe validarse antes de cerrar.
+
+> **Estado JIRA al 2026-06-19 (cierre de sesión):** EP-01, EP-02 cerrados al 100%. EP-03 al 86% (6/7 HUs útiles; HU-03.7 bloqueada por shaper de S4). EP-04 y EP-05 sin arrancar todavía. EP-06/07/08/09 son S4-S5. Total de issues: 171 (último IUDCYGI-171). Las HUs `(NUEVA)` marcadas abajo se incorporaron en sesiones de planificación posteriores al backlog inicial.
 
 ### 7.1 Mapa de Épicas
 
@@ -364,6 +366,9 @@ Cada Épica, HU y Subtask incluirá en su descripción:
 - **HU-02.5** Como DevOps, quiero Nginx con TLS terminado en :443 actuando de reverse proxy, para centralizar el acceso seguro.
   - *Subtasks:* generar certs autofirmados (script en `docs/runbooks/generar-certificados.md`), rutas `/crm`, `/api`, `/midpoint`.
   - *DoD:* `curl -k https://localhost/` responde; HSTS habilitado; HTTP redirige a HTTPS.
+- **HU-02.6** *(NUEVA 2026-06-19, IUDCYGI-169)* Como DevOps, quiero reemplazar el contenedor Asterisk custom (HU-02.3) por **MikoPBX** (imagen `mikopbx/mikopbx:2026.2.118`, Alpine + Asterisk 20 baked + GUI web + REST API), para tener una interfaz visual de gestión y un camino oficial de provisioning REST consumible desde `integration-api`.
+  - *Subtasks:* refactor `docker-compose.yml` (servicio `mikopbx` con puertos 8090/8443 GUI, 5060 SIP, 5061 SIP-TLS, 8088/8089 WS/WSS, 10000-10200 RTP, volúmenes `mikopbx-data` y `mikopbx-confdb`), `.env.example` con `MIKOPBX_*`, eliminación del bind-mount de configs Asterisk en `docker-compose.dev.yml`, conservar `infra/asterisk/` como evidencia histórica de HU-02.3.
+  - *DoD:* `docker compose up mikopbx` arranca con healthcheck verde en ~75 s; GUI accesible en `http://localhost:8090` (admin / password en `.env`); HUs 02.3, 03.3 y 03.4 comentadas en JIRA como "fase 1 superseded". **Mergeada** en PR #12.
 
 #### EP-03 — Microservicio de Integración (Spring Boot)
 - **HU-03.1** Como Integrador, quiero el esqueleto Spring Boot 3 con healthcheck y métricas Actuator, para tener una base productiva.
@@ -371,21 +376,29 @@ Cada Épica, HU y Subtask incluirá en su descripción:
 - **HU-03.2** Como Integrador, quiero el endpoint REST `POST /api/v1/sip-extensions`, para que midPoint cree extensiones.
   - *Subtasks:* DTO, controller, service, validación, persistencia JPA.
   - *DoD:* test JUnit + Testcontainers en verde; inserta fila en `crm.sip_extensions`.
-- **HU-03.3** Como Integrador, quiero un escritor `PjsipConfigWriter` con plantilla Mustache, para regenerar `pjsip.conf`.
+- **HU-03.3** *(fase 1, superseded por HU-03.8 desde 2026-06-19)* Como Integrador, quiero un escritor `PjsipConfigWriter` con plantilla Mustache, para regenerar `pjsip.conf`.
   - *DoD:* test unitario verifica idempotencia; sintaxis válida para Asterisk.
-- **HU-03.4** Como Integrador, quiero un cliente AMI/CLI que recargue Asterisk tras escribir el archivo, para aplicar cambios en caliente.
+  - *Nota:* la clase y el snapshot test siguen en el repo como evidencia, pero no se usan en runtime — el provisioning lo hace HU-03.8 vía REST API.
+- **HU-03.4** *(fase 1, superseded por HU-03.8 desde 2026-06-19)* Como Integrador, quiero un cliente AMI/CLI que recargue Asterisk tras escribir el archivo, para aplicar cambios en caliente.
   - *DoD:* tras un POST, la extensión aparece en `asterisk -rx "pjsip show endpoints"`.
+  - *Nota:* `AsteriskAmiClient` y sus 4 tests siguen verdes en CI como evidencia HU-03.4. La abstracción `AsteriskProvisioningService` se mantiene; HU-03.8 cambió únicamente la implementación interna.
 - **HU-03.5** Como Integrador, quiero autenticación JWT validada contra midPoint, para proteger los endpoints.
+  - *Implementación final:* `AuthService` valida bcrypt local contra `crm.users.password_hash`. La integración real con midPoint REST queda como TODO documentado en la clase, pendiente de HU-05.x (no cambia la firma del método `login(username, password)`).
   - *DoD:* requests sin token → 401; con token válido → 200; flujo documentado.
 - **HU-03.6** Como Integrador, quiero el endpoint `GET /api/v1/cdr`, para que el CRM lea el histórico de llamadas.
-  - *DoD:* paginación funcional, filtros por fecha/agente, contract test.
-- **HU-03.7** *(añadida 2026-06-16)* Como Integrador, quiero que `integration-api` consulte el endpoint `/status` de `ucgi-shaper` cada 10 s y reescriba `pjsip.conf` según el BW disponible (downgrade automático Nivel 1), para que las llamadas nuevas se inicien con el códec óptimo.
-  - *Subtasks:* cliente HTTP al shaper, lógica de umbrales (≥30 Mbps full, 10–29 mixto, <10 g729/gsm priorizado), `PjsipConfigWriter` reutilizado, `pjsip reload` vía AMI.
-  - *DoD:* test integración Testcontainers con shaper mock; al cambiar BW a 5 Mbps, `pjsip.conf` se reescribe en ≤ 15 s; nueva llamada negocia G.729; evidencia en `docs/evidencias/HU-03.7/`.
+  - *DoD:* paginación Spring `Page<CdrResponse>`, default `size=20, sort=startTime,desc`; 6 filtros combinables (`from`, `to`, `agentUserId`, `clientId`, `disposition`, `direction`); contract test del shape.
+- **HU-03.7** *(añadida 2026-06-16)* Como Integrador, quiero que `integration-api` consulte el endpoint `/status` de `ucgi-shaper` cada 10 s y aplique downgrade de códec en MikoPBX cuando el BW baje, para que las llamadas nuevas se inicien con el códec óptimo.
+  - *Subtasks:* cliente HTTP al shaper, lógica de umbrales (≥30 Mbps full, 10–29 mixto, <10 g729/gsm priorizado), `MikoPbxRestClient.updateEmployee` para reescribir `sip_allow` por extensión (no `pjsip.conf` ya que MikoPBX gestiona los endpoints en su DB interna).
+  - *DoD:* test integración con shaper mock y MikoPBX stub; al cambiar BW a 5 Mbps, las extensiones se actualizan en ≤ 15 s con `allow = g729,gsm,ulaw`; nueva llamada negocia G.729; evidencia en `docs/evidencias/HU-03.7/`.
+  - *Bloqueo:* requiere HU-08.5 (`ucgi-shaper`) que es S4. **Sin avance posible hasta S4.**
+- **HU-03.8** *(NUEVA 2026-06-19, IUDCYGI-170)* Como Integrador, quiero un cliente REST a la API de MikoPBX (`/pbxcore/api/v3/employees`) que reemplace `PjsipConfigWriter + AsteriskAmiClient`, para alinear el provisioning con el camino oficial de la PBX elegida.
+  - *Subtasks:* `MikoPbxRestClient` (Java 17 HttpClient, JWT cacheado con refresh automático, retry exponencial), `MikoPbxProperties` (`@ConfigurationProperties("mikopbx")`), refactor `AsteriskProvisioningService.provisionExtension(number, displayName, sipSecret)`, tests con WireMock (7 casos).
+  - *DoD:* POST `/api/v1/sip-extensions` resulta en una extensión visible en la GUI MikoPBX; tests WireMock verifican login cacheado, retry, 5xx, 4xx. **Mergeada** en PR #13.
 
 #### EP-04 — CRM Frontend con WebRTC
 - **HU-04.1** Como agente, quiero una pantalla de login que autentique contra midPoint, para acceder al CRM.
   - *DoD:* credenciales inválidas → mensaje; válidas → token guardado en memoria (no localStorage) + redirect.
+  - *Subtarea explícita IUDCYGI-167:* instalar Vitest mínimo (sin coverage) en el scaffolding para que los tests de S3 sean ejecutables. La configuración formal de cobertura sigue en HU-06.3.
 - **HU-04.2** Como agente, quiero un panel con softphone WebRTC registrado a Asterisk, para llamar desde el navegador.
   - *Subtasks:* integrar `sip.js`, manejar estados `Registered/Unregistered`, mostrar extensión propia, **campo de marcación libre** (permite teclear extensiones internas 1XX y, cuando exista el SIP trunk en S5, prefijos de salida).
   - *DoD:* el softphone aparece como `Registered` y se puede llamar a otra extensión interna. Campo de marcación libre acepta dígitos arbitrarios sin validación rígida (deja preparado el ground para llamadas externas en S5).
@@ -401,6 +414,9 @@ Cada Épica, HU y Subtask incluirá en su descripción:
   - *DoD:* 4 KPIs visibles + gráfico simple; consulta agregada al API.
 - **HU-04.8** Como admin, quiero gestión de usuarios y roles, para alta/baja de agentes.
   - *DoD:* solo rol `Admin` ve la vista; alta dispara provisión vía API.
+- **HU-04.9** *(NUEVA 2026-06-19, IUDCYGI-171)* Como Agente, quiero poder iniciar **videollamadas** desde el softphone del CRM, para cumplir el requisito visto en clase 2026-06-19.
+  - *Subtasks:* habilitar códecs `vp8` y `h264` en el provisioning de extensiones MikoPBX (HU-03.8 los acepta como parámetro); SIP.js con `sessionDescriptionHandlerFactoryOptions: { constraints: { audio: true, video: true } }`; permisos de cámara en primer login; UI con video local + remoto; fallback automático a solo-audio si la cámara no está disponible.
+  - *DoD:* videollamada entre dos agentes en local funcional; runbook `docs/runbooks/probar-videollamada.md`; evidencia capturas/GIF.
 
 #### EP-05 — Integración midPoint ↔ Asterisk ↔ BD
 - **HU-05.1** Como Integrador, quiero el recurso SQL en midPoint apuntando a `crm.users`, para que sea la fuente de verdad.
@@ -418,15 +434,19 @@ Cada Épica, HU y Subtask incluirá en su descripción:
   - *DoD:* primer análisis exitoso; quality gate "Sonar way" pasa o se documenta excepción.
 - **HU-06.2** Como QA, quiero cobertura mínima del 70% en `integration-api`.
   - *DoD:* JaCoCo report subido a Sonar; gate de cobertura configurado.
+  - *Subtarea explícita IUDCYGI-166:* quitar `-DskipTests` del `ci.yml` y dejar `mvn verify` ejecutando la suite completa (deuda técnica heredada de HU-01.4). Sin esto, JaCoCo no puede calcular cobertura.
 - **HU-06.3** Como QA, quiero cobertura mínima del 60% en `crm-frontend`.
   - *DoD:* Vitest + c8 report subido; gate configurado.
 - **HU-06.4** Como QA, quiero pruebas de integración E2E del CRM con Playwright.
   - *DoD:* flujo "login → ver cliente → llamar → ver CDR" pasa en CI.
 - **HU-06.5** Como QA, quiero la tabla de mapeo ISO 25010 en `docs/iso/iso-25010-mapping.md`.
   - *DoD:* tabla con las 8 características (Funcionalidad, Eficiencia, Compatibilidad, Usabilidad, Fiabilidad, Seguridad, Mantenibilidad, Portabilidad) con evidencia concreta por cada una.
-- **HU-06.6** *(añadida 2026-06-16)* Como QA, quiero el plan de pruebas formal en `docs/iso/plan-de-pruebas.md`, siguiendo la estructura dictada por el profesor en clase.
+- **HU-06.6** *(añadida 2026-06-16, IUDCYGI-161)* Como QA, quiero el plan de pruebas formal en `docs/iso/plan-de-pruebas.md`, siguiendo la estructura dictada por el profesor en clase.
   - *Subtasks:* secciones de Alcance, Roles y recursos, Diseño y suites (caja negra / caja blanca / basadas en experiencia), Verificación vs Validación, Trazabilidad, Criterios de entrada/salida.
   - *DoD:* documento completo, links desde §10 del PLAN.md, tabla de trazabilidad HU ↔ test ↔ evidencia.
+- **HU-06.7** *(NUEVA 2026-06-18, IUDCYGI-168)* Como QA, quiero un escenario SIPp UAC ejecutable en local y en CI que dispare 50 llamadas concurrentes contra MikoPBX, para evidenciar capacidad VoIP y validar la calculadora pedagógica con números reales.
+  - *Subtasks:* `tests/load/uac.xml` con SIPp escenario contra extensión `600` (echo); `Makefile` target `make stress` (`-m 50 -r 5 -d 30000`); reporte CSV con éxitos/fallos/latencia/jitter; `docs/iso/pruebas-carga-sipp.md`; correr 3 cargas (50cc/100cc/200cc).
+  - *DoD:* `make stress` ejecutable contra el stack levantado; reporte CSV en `docs/evidencias/HU-06.7/`; mapeo explícito a la calculadora `tools/voip-bw-calculator/`.
 
 #### EP-07 — Seguridad y cumplimiento (ISO 27001)
 - **HU-07.1** Como QA, quiero certificados TLS autogenerados (CA + server) en `infra/asterisk/tls/` y `infra/nginx/certs/`.
@@ -462,9 +482,9 @@ Cada Épica, HU y Subtask incluirá en su descripción:
 - **HU-08.5** *(añadida 2026-06-16)* Como QA, quiero un servicio `ucgi-shaper` en docker-compose que limite el ancho de banda del tráfico VoIP en runtime mediante `tc` (Linux Traffic Control), para materializar la propuesta del profesor "creo un router/firewall que fije ancho de banda como si fuera cliente, lo saturo y mido hasta dónde soporta".
   - *Subtasks:* `services/ucgi-shaper/Dockerfile` (alpine + iproute2 + python3 + flask), `api.py` con `POST /limit`, `GET /status`, `GET /metrics`; `shaper-control.sh` que ejecuta `tc qdisc add dev eth0 root tbf rate <X>mbit`; entrada en compose con `cap_add: NET_ADMIN` y puerto 9100; integración con `prometheus.yml`.
   - *DoD:* `curl -X POST http://localhost:9100/limit -d '{"mbps":5}'` aplica el shaping en <2 s; `GET /metrics` lo expone; Grafana lo grafica; demo del §4 del documento `docs/iso/calculo-capacidad-voip.md` reproducible.
-- **HU-08.6** *(añadida 2026-06-16)* Como QA, quiero una calculadora interactiva de capacidad VoIP en `tools/voip-bw-calculator/` (Python + Tkinter, standalone), para defensa pedagógica en la presentación del jueves 2026-06-18 y como anexo del informe.
+- **HU-08.6** *(añadida 2026-06-16, IUDCYGI-163, Finalizada)* Como QA, quiero una calculadora interactiva de capacidad VoIP en `tools/voip-bw-calculator/` (Python + Tkinter, standalone), para defensa pedagógica en la presentación del jueves 2026-06-18 y como anexo del informe.
   - *Subtasks:* `calculator.py` (GUI Tkinter con sliders BW + holgura, tabla por códec, gráfica matplotlib embebido); `bw_calc.py` (fórmulas testeable); `codec_data.py` (constantes); `tests/test_bw_calc.py` (pytest); `requirements.txt`; `README.md`. Copia adicional en `S15/Calculator/` para uso académico.
-  - *DoD:* `python calculator.py` levanta GUI funcional sin necesitar Docker; tests pytest en verde; gráfica refresca al mover los sliders; tabla muestra G.711/GSM/G.729/Opus con valores correctos (G.711 a 50 Mbps con 30% holgura debe dar 200 ± 1).
+  - *DoD cumplido en PR #7:* `python calculator.py` levanta GUI; 9 tests pytest verde; G.711 a 50 Mbps con 30% holgura = 200 llamadas exactas.
 
 #### EP-09 — Documentación y entrega final
 - **HU-09.1** Como equipo, queremos el informe en prosa final.
