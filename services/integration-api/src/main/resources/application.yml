@@ -3,11 +3,6 @@ spring:
     name: integration-api
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
-  # HU-03.5 reactivará SecurityAutoConfiguration cuando llegue el filtro JWT.
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
-      - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
 
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:mariadb://db:3306/crm}
@@ -61,6 +56,11 @@ info:
     name: ${spring.application.name}
     description: Microservicio intermediario UCGI (midPoint ↔ Asterisk)
     version: 0.1.0-SNAPSHOT
+
+jwt:
+  secret: ${JWT_SECRET:changeme-min-32-chars-required-here-please}
+  expiration-minutes: ${JWT_EXPIRATION_MINUTES:60}
+  issuer: ucgi-integration-api
 
 mikopbx:
   host: ${MIKOPBX_HOST:mikopbx}

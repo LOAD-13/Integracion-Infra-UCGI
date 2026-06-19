@@ -34,4 +34,12 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ApiError.of(404, "Not Found", ex.getMessage(), request.getRequestURI()));
     }
+
+    @ExceptionHandler(com.ucgi.integrationapi.auth.AuthService.BadCredentialsException.class)
+    public ResponseEntity<ApiError> handleBadCredentials(
+            com.ucgi.integrationapi.auth.AuthService.BadCredentialsException ex,
+            HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ApiError.of(401, "Unauthorized", ex.getMessage(), request.getRequestURI()));
+    }
 }
