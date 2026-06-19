@@ -23,6 +23,9 @@ public class User {
     @Column(nullable = false, unique = true, length = 64)
     private String username;
 
+    @Column(name = "full_name", nullable = false, length = 255)
+    private String fullName;
+
     @Column(name = "password_hash", length = 255)
     private String passwordHash;
 
@@ -38,6 +41,10 @@ public class User {
 
     public String getUsername() {
         return username;
+    }
+
+    public String getFullName() {
+        return fullName;
     }
 
     public String getPasswordHash() {

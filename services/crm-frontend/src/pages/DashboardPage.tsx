@@ -1,5 +1,6 @@
 import { LogOut } from "lucide-react";
 import { useAuth } from "@/auth/useAuth";
+import { Softphone } from "@/components/softphone/Softphone";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -30,34 +31,38 @@ export function DashboardPage() {
         </Button>
       </header>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Próximamente</CardTitle>
-          <CardDescription>
-            Las siguientes HU del Sprint 3 (HU-04.2 a HU-04.9) van a poblar
-            este panel con el softphone WebRTC, la lista de clientes, el
-            histórico de llamadas, las notas y los KPIs del agente.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 text-sm text-muted-foreground sm:grid-cols-2">
-          <div className="rounded-md border bg-muted/20 p-4">
-            <p className="font-medium text-foreground">Softphone</p>
-            <p>Pendiente HU-04.2 (SIP.js sobre wss).</p>
-          </div>
-          <div className="rounded-md border bg-muted/20 p-4">
-            <p className="font-medium text-foreground">Clientes</p>
-            <p>Pendiente HU-04.3 (CRUD).</p>
-          </div>
-          <div className="rounded-md border bg-muted/20 p-4">
-            <p className="font-medium text-foreground">Histórico CDR</p>
-            <p>Pendiente HU-04.5.</p>
-          </div>
-          <div className="rounded-md border bg-muted/20 p-4">
-            <p className="font-medium text-foreground">KPIs del día</p>
-            <p>Pendiente HU-04.7.</p>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Próximamente</CardTitle>
+            <CardDescription>
+              Las siguientes HU del Sprint 3 (HU-04.3 a HU-04.9) van a poblar
+              este panel con el CRUD de clientes, el histórico de llamadas,
+              las notas y los KPIs del agente.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 text-sm text-muted-foreground sm:grid-cols-2">
+            <div className="rounded-md border bg-muted/20 p-4">
+              <p className="font-medium text-foreground">Clientes</p>
+              <p>Pendiente HU-04.3 (CRUD).</p>
+            </div>
+            <div className="rounded-md border bg-muted/20 p-4">
+              <p className="font-medium text-foreground">Histórico CDR</p>
+              <p>Pendiente HU-04.5.</p>
+            </div>
+            <div className="rounded-md border bg-muted/20 p-4">
+              <p className="font-medium text-foreground">Notas</p>
+              <p>Pendiente HU-04.6 (autosave).</p>
+            </div>
+            <div className="rounded-md border bg-muted/20 p-4">
+              <p className="font-medium text-foreground">KPIs del día</p>
+              <p>Pendiente HU-04.7.</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Softphone />
+      </div>
     </div>
   );
 }

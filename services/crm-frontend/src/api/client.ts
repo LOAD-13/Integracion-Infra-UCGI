@@ -59,3 +59,17 @@ export function authorizedFetch(
   }
   return fetch(`${API_BASE}${path}`, { ...init, headers });
 }
+
+export interface SipCredentialsResponse {
+  extension: string;
+  displayName: string;
+  secret: string;
+}
+
+export async function fetchSipCredentials(
+  token: string,
+): Promise<SipCredentialsResponse> {
+  const response = await authorizedFetch(token, "/v1/me/sip-credentials");
+  if (!response.ok) throw await parseError(response);
+  return (await response.json()) as SipCredentialsResponse;
+}
