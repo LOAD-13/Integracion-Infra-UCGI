@@ -1,6 +1,9 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { LoginPage } from "./pages/LoginPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { ClientsPage } from "./pages/ClientsPage";
+import { ClientDetailPage } from "./pages/ClientDetailPage";
+import { ClientFormPage } from "./pages/ClientFormPage";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 
 export default function App() {
@@ -13,6 +16,38 @@ export default function App() {
           element={
             <ProtectedRoute>
               <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/clients"
+          element={
+            <ProtectedRoute>
+              <ClientsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/clients/new"
+          element={
+            <ProtectedRoute>
+              <ClientFormPage mode="create" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/clients/:id"
+          element={
+            <ProtectedRoute>
+              <ClientDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/clients/:id/edit"
+          element={
+            <ProtectedRoute>
+              <ClientFormPage mode="edit" />
             </ProtectedRoute>
           }
         />
