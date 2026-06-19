@@ -72,3 +72,33 @@ jobs:
         if: steps.detect.outputs.exists == 'true'
         working-directory: services/crm-frontend
         run: npm run lint
+
+  test-crm:
+    name: Test CRM (Vitest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect package.json
+        id: detect
+        run: |
+          if [ -f services/crm-frontend/package.json ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::package.json todavia no existe; test-crm se ejecutara cuando este disponible."
+          fi
+      - name: Set up Node
+        if: steps.detect.outputs.exists == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: services/crm-frontend/package-lock.json
+      - name: Install
+        if: steps.detect.outputs.exists == 'true'
+        working-directory: services/crm-frontend
+        run: npm ci
+      - name: Run tests
+        if: steps.detect.outputs.exists == 'true'
+        working-directory: services/crm-frontend
+        run: npm test
