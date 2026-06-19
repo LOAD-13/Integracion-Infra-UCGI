@@ -50,28 +50,35 @@ public class SipExtensionService {
 
         SipExtension saved = sipExtensionRepository.save(
                 new SipExtension(user.getId(), request.extensionNumber(), request.password()));
-        // Disparar provisioning Asterisk solo tras commit (evita reload con datos no persistidos).
-        events.publishEvent(new SipExtensionPersistedEvent(saved.getExtensionNumber()));
+        // Disparar provisioning Asterisk solo tras commit (evita crear extensión en
+        // MikoPBX si la transacción rollback). Ver @TransactionalEventListener abajo.
+        String displayName = request.displayName() != null && !request.displayName().isBlank()
+                ? request.displayName() : user.getUsername();
+        events.publishEvent(new SipExtensionPersistedEvent(
+                saved.getExtensionNumber(), displayName, request.password()));
         return SipExtensionResponse.of(saved, user.getUsername());
     }
 
     /**
-     * Listener post-commit: regenera pjsip-dynamic.conf y dispara pjsip reload vía AMI.
-     * Si AMI falla tras los reintentos, se loggea pero NO se propaga error al caller —
-     * la persistencia ya tuvo éxito y el reload se reintentará en el próximo trigger.
+     * Listener post-commit: crea la extensión en MikoPBX vía REST (HU-03.8).
+     * Si MikoPBX está temporalmente caída, se loggea pero NO se propaga el error
+     * al caller — la persistencia en {@code crm.sip_extensions} ya tuvo éxito y
+     * la sincronización se reintenta en el próximo trigger.
      */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     void onPersisted(SipExtensionPersistedEvent event) {
         try {
-            AsteriskProvisioningService.ProvisioningResult result = provisioningService.provision();
-            log.info("Provisioning Asterisk para ext {}: reloaded={}, intentos={}",
-                    event.extensionNumber(), result.reloaded(), result.attempts());
+            AsteriskProvisioningService.ProvisioningResult result =
+                    provisioningService.provisionExtension(
+                            event.extensionNumber(), event.displayName(), event.sipPassword());
+            log.info("Provisioning MikoPBX para ext {}: success={}, intentos={}, mikoPbxId={}",
+                    event.extensionNumber(), result.success(), result.attempts(), result.mikoPbxId());
         } catch (RuntimeException ex) {
-            log.error("Provisioning Asterisk falló para ext {} (no se propaga, persistencia OK)",
+            log.error("Provisioning MikoPBX falló para ext {} (no se propaga, persistencia OK)",
                     event.extensionNumber(), ex);
         }
     }
 
-    public record SipExtensionPersistedEvent(String extensionNumber) {
+    public record SipExtensionPersistedEvent(String extensionNumber, String displayName, String sipPassword) {
     }
 }
