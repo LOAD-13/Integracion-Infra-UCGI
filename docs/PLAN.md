@@ -27,7 +27,7 @@ El resultado del lab será un prototipo funcional levantado con `docker-compose 
 | # | Tema | Resolución adoptada |
 |---|------|---------------------|
 | 1 | DB: ¿MySQL/Postgres o MariaDB? | **MariaDB 10.6 para el CRM** (cumple guía técnica, evita problemas init.sql). midPoint requiere un **PostgreSQL 15 dedicado** porque evolveum eliminó el conector MariaDB en la imagen 4.4+ (la DDL `mysql-4.4-all.sql` ya no se distribuye). Resultado: 2 bases — `db` (mariadb, schema `crm`) y `midpoint-db` (postgres, base `midpoint`). |
-| 2 | "REST API nativa" de Asterisk inexistente | **Microservicio intermediario en Spring Boot (Java 17)** expone REST a midPoint y modifica `pjsip.conf` + recarga Asterisk. |
+| 2 | "REST API nativa" de Asterisk inexistente | **Microservicio intermediario en Spring Boot (Java 17)** expone REST a midPoint. **Pivote 2026-06-19**: ya no escribe `pjsip.conf` manualmente — llama a la **REST API de MikoPBX** (que es Asterisk 20 con una GUI y API de gestión por encima). midPoint provisiona contra `integration-api` y éste a su vez contra MikoPBX. Mantiene la separación de capas que requiere el PDF. |
 | 3 | TLS SIP vs puerto 5060 plano | **Puerto 5061 SIP-TLS con certificados autogenerados** para la prueba final. El 5060 queda solo para desarrollo. |
 | 4 | SonarQube sobre `.conf` de Asterisk | SonarQube apunta al **código Java del microservicio** y al **TypeScript del CRM** — métricas reales de mantenibilidad y fiabilidad. |
 | 5 | Recurso "LDAP" fantasma | **Solo conector SQL** en midPoint (no se añade OpenLDAP). |
@@ -42,7 +42,7 @@ El resultado del lab será un prototipo funcional levantado con `docker-compose 
 |---------|----------|
 | Frontend / CRM | React 18 + TypeScript + Vite + TailwindCSS. **WebRTC embebido** vía SIP.js → Asterisk WebSocket TLS (wss:8089). Alcance "estándar de call center" (~7-8 vistas). |
 | Microservicio de integración | Spring Boot 3 + Java 17 + Maven. Expone REST consumido por midPoint para CRUD de extensiones SIP. |
-| PBX | Asterisk (debian:bullseye), módulos `chan_pjsip`, `res_http_websocket`, `res_pjsip_transport_websocket`, `res_srtp`. |
+| PBX | **MikoPBX** (Alpine + Asterisk 20 baked) con GUI web y REST API. Reemplaza el contenedor Asterisk custom de S2 desde la decisión del 2026-06-19. Soporta SIP, SIP-TLS, WebSocket/WSS, codecs voz (opus, ulaw, alaw, gsm, g729) y video (vp8, h264). |
 | IAM | `evolveum/midpoint` oficial. |
 | Base de datos | **2 contenedores**: MariaDB 10.6 con schema `crm` para datos del CRM, PostgreSQL 15 con base `midpoint` para el repository de midPoint (forzado por la imagen oficial). |
 | Reverse proxy / TLS frontend | Nginx con TLS terminado (certs autofirmados). |
@@ -83,7 +83,7 @@ flowchart LR
         crm[CRM React<br/>:3000]
         api[Spring Boot<br/>integration-api :8081]
         mid[midPoint<br/>:8080]
-        ast[Asterisk<br/>SIP 5061 TLS<br/>WSS 8089<br/>RTP 10000-10100]
+        ast[MikoPBX<br/>GUI :8090<br/>SIP 5060/5061 TLS<br/>WSS 8089<br/>RTP 10000-10200]
         db[(MariaDB 10.6<br/>:3306<br/>schema: crm)]
         mdb[(PostgreSQL 15<br/>:5432<br/>db: midpoint)]
         sonar[SonarQube<br/>:9000]
@@ -100,10 +100,9 @@ flowchart LR
 
     crm -- REST --> api
     api -- JDBC --> db
-    api -- AMI/exec --> ast
+    api -- REST API MikoPBX --> ast
     mid -- JDBC --> mdb
     mid -- REST --> api
-    api -- escribe pjsip.conf<br/>y recarga --> ast
 
     api -- /actuator/prometheus --> prom
     ast -- exporter --> prom
@@ -118,7 +117,7 @@ flowchart LR
 1. Un usuario se da de alta en la tabla `crm.users` con rol `AgenteCallCenter`.
 2. midPoint detecta el cambio vía recurso SQL (sync) y dispara su mapping.
 3. midPoint llama al endpoint `POST /api/v1/sip-extensions` del microservicio Java.
-4. El microservicio (a) inserta la extensión en `crm.sip_extensions`, (b) regenera `pjsip.conf` desde plantilla, (c) ejecuta `asterisk -rx "pjsip reload"` vía AMI.
+4. El microservicio (a) inserta la extensión en `crm.sip_extensions`, (b) llama a la REST API de MikoPBX (`POST /pbxcore/api/extensions/v1/save`) para registrar el endpoint en su base interna, (c) MikoPBX aplica el cambio en caliente sin reinicio. La extensión queda visible tanto en la GUI de MikoPBX como vía la REST. Nota histórica: en HU-03.3/03.4 (fase 1, Asterisk custom) este paso se hacía vía AMI + `PjsipConfigWriter`; la fase 2 (HU-02.6/03.8) lo migra a REST.
 5. El agente abre el CRM, hace login (auth contra midPoint vía REST), entra al panel y SIP.js registra la extensión por wss:8089.
 6. Llama a otro agente. Asterisk enruta, genera CDR en `crm.cdr`.
 7. El CRM consulta el histórico vía `GET /api/v1/cdr`.
@@ -280,18 +279,16 @@ Cada commit lleva referencia JIRA: `feat(api): provisionar extensión SIP [UCGI-
 
 ### 5.3 Simulación de equipo de 4
 
-Cuatro identidades git reparten commits según rol. Una es la real (Joaquin), las otras tres simuladas:
+Cuatro identidades git reparten commits según rol. Joaquín firma con su perfil real (LOAD-13); las otras tres están firmadas con los nombres de las tres compañeras del equipo presentado al curso, pero como alias en `scripts/git-as.sh` (los emails apuntan a dominios neutros tipo `mikiasa@ucgi.local` por consistencia histórica del repo):
 
 | Identidad git | Rol PDF | Áreas que firma |
 |---------------|---------|----------------|
-| **Joaquin Loa Denegri** (LOAD-13, su perfil GitHub real) | Integrador + Tech Lead | services/integration-api, services/crm-frontend, integración midPoint↔Asterisk, decisiones técnicas |
-| **Mikiasa** | Arquitecto DevOps #1 | infra/asterisk, infra/midpoint, docker-compose, redes |
-| **RSocualaya** | Arquitecto DevOps #2 | infra/nginx, certs TLS, infra/prometheus, infra/grafana |
-| **Ash-e** | Product Owner + QA | docs/, JIRA grooming, README, informe final, tests/, sonar, seguridad |
+| **Joaquín Loa Denegri** (LOAD-13, su perfil GitHub real) | Integrador + Tech Lead | services/integration-api, services/crm-frontend, integración midPoint↔Asterisk, decisiones técnicas |
+| **Kiara Santti Saavedra** | Arquitecto DevOps #1 | infra/mikopbx, infra/midpoint, docker-compose, redes |
+| **Raul Socualaya** | Arquitecto DevOps #2 | infra/nginx, certs TLS, infra/prometheus, infra/grafana |
+| **Genesis Salazar Tarazona** | Product Owner + QA | docs/, JIRA grooming, README, informe final, tests/, sonar, seguridad |
 
-> "Ash-e" se elige por ser intencionalmente neutral en género — la cuarta integrante real aún no está decidida en el equipo.
-
-Las identidades se gestionan con `git -c user.name="..." -c user.email="...@..." commit ...` o con un script `scripts/git-as.sh <alias> "<mensaje>"` que encapsula la firma. Emails ficticios apuntan a dominios neutros (ej. `mikiasa@ucgi.local`).
+Las identidades se gestionan con `git -c user.name="..." -c user.email="...@..." commit ...` o con el script `scripts/git-as.sh <alias> "<mensaje>"` que encapsula la firma. Los alias del script (`joaquin`, `mikiasa`, `rsocualaya`, `ash`) se conservan como están para no romper la historia de commits previos al alta del equipo definitivo el 2026-06-19.
 
 ### 5.4 Pipelines (GitHub Actions)
 

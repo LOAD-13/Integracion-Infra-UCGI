@@ -87,32 +87,40 @@ services:
       retries: 20
       start_period: 180s
 
-  # ===== Asterisk (PBX) =====
-  # Configs vienen baked en la imagen desde infra/asterisk/configs/.
-  # asterisk-config persiste el runtime state (astdb, voicemail, recordings).
-  # Puerto 5061/TLS y 8089/WSS se activan en HU-07.2 cuando existan certs.
-  asterisk:
-    build:
-      context: ./infra/asterisk
-      dockerfile: Dockerfile
-    image: ucgi/asterisk:20.20.0
-    container_name: ucgi-asterisk
+  # ===== MikoPBX (PBX con GUI + REST API) =====
+  # Reemplaza al contenedor Asterisk custom de S2 desde la decisión 2026-06-19
+  # (HU-02.6). MikoPBX es Asterisk 20 sobre Alpine con GUI web, REST API y
+  # SQLite interno. La provisión de extensiones la hace integration-api vía
+  # REST (HU-03.8). infra/asterisk/ queda en el repo como evidencia histórica.
+  mikopbx:
+    image: mikopbx/mikopbx:2026.2.118
+    container_name: ucgi-mikopbx
     restart: unless-stopped
+    environment:
+      WEBHTTPPORT: 80
+      WEBHTTPSPORT: 443
+      SSHPORT: 22
+      TZ: ${TZ}
     volumes:
-      - asterisk-config:/var/lib/asterisk
-      - asterisk-dynamic:/etc/asterisk/dynamic.d
+      - mikopbx-data:/storage/usbdisk1     # configs, recordings, SQLite DB
+      - mikopbx-confdb:/cf/conf            # config persistente del sistema
     ports:
-      - "5060:5060/udp"                # SIP plano (dev / softphones internos)
-      - "8088:8088/tcp"                # WebSocket plano (SIP.js sobre ws://)
-      - "10000-10100:10000-10100/udp"  # RTP
+      - "8090:80"                           # GUI HTTP (host:8090)
+      - "8443:443"                          # GUI HTTPS (host:8443)
+      - "5060:5060/udp"                     # SIP UDP
+      - "5060:5060/tcp"                     # SIP TCP
+      - "5061:5061/tcp"                     # SIP-TLS (HU-07.2)
+      - "8088:8088/tcp"                     # WS para SIP.js
+      - "8089:8089/tcp"                     # WSS para SIP.js (HU-07.2)
+      - "10000-10200:10000-10200/udp"       # RTP (~100 llamadas concurrentes)
     networks:
       - ucgi-net
     healthcheck:
-      test: ["CMD", "asterisk", "-rx", "core show version"]
-      interval: 20s
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://127.0.0.1:80/ || exit 1"]
+      interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 60s
+      start_period: 120s
 
   # ===== Microservicio de integración (Spring Boot) =====
   integration-api:
@@ -135,8 +143,10 @@ services:
       ASTERISK_AMI_USER: ${ASTERISK_AMI_USER}
       ASTERISK_AMI_SECRET: ${ASTERISK_AMI_SECRET}
       ASTERISK_CONFIG_PATH: ${ASTERISK_CONFIG_PATH}
-    volumes:
-      - asterisk-dynamic:/etc/asterisk/dynamic.d
+      MIKOPBX_HOST: ${MIKOPBX_HOST}
+      MIKOPBX_PORT: ${MIKOPBX_PORT}
+      MIKOPBX_ADMIN_USER: ${MIKOPBX_ADMIN_USER}
+      MIKOPBX_ADMIN_PASSWORD: ${MIKOPBX_ADMIN_PASSWORD}
     ports:
       - "8081:8081"
     networks:
@@ -146,7 +156,7 @@ services:
         condition: service_healthy
       midpoint:
         condition: service_started
-      asterisk:
+      mikopbx:
         condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8081/actuator/health"]
@@ -298,8 +308,8 @@ volumes:
   db-data:           # MariaDB — datos del CRM (crm.*)
   midpoint-home:     # midPoint — keystore, configuración runtime
   midpoint-pg-data:  # PostgreSQL del repository de midPoint
-  asterisk-config:   # Asterisk — astdb, voicemail, grabaciones
-  asterisk-dynamic:  # Compartido asterisk <-> integration-api: pjsip.conf dinámico
+  mikopbx-data:      # MikoPBX — /storage/usbdisk1 (recordings, SQLite, configs runtime)
+  mikopbx-confdb:    # MikoPBX — /cf/conf (config persistente del sistema)
   sonar-data:        # SonarQube — base de análisis
   sonar-logs:        # SonarQube — logs runtime
   sonar-extensions:  # SonarQube — plugins instalados

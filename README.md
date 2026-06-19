@@ -97,10 +97,10 @@ Toda referencia a un issue va con su clave JIRA `[IUDCYGI-NN]`.
 
 | Integrante | Rol | Áreas principales |
 |------------|-----|-------------------|
-| Joaquín Loa Denegri ([LOAD-13](https://github.com/LOAD-13)) | Integrador + Tech Lead | `services/integration-api`, `services/crm-frontend`, integración midPoint ↔ Asterisk |
-| Mikiasa | Arquitecto DevOps | `infra/asterisk`, `infra/midpoint`, `docker-compose.yml`, redes |
-| RSocualaya | Arquitecto DevOps | `infra/nginx`, certificados TLS, `infra/prometheus`, `infra/grafana` |
-| Ash-e | Product Owner + QA | `docs/`, backlog JIRA, README, informe final, `tests/`, SonarQube, seguridad |
+| Joaquín Loa Denegri ([LOAD-13](https://github.com/LOAD-13)) | Integrador + Tech Lead | `services/integration-api`, `services/crm-frontend`, integración midPoint ↔ Asterisk, decisiones técnicas |
+| Kiara Santti Saavedra | Arquitecto DevOps #1 | `infra/asterisk`, `infra/midpoint`, `docker-compose.yml`, redes |
+| Raul Socualaya | Arquitecto DevOps #2 | `infra/nginx`, certificados TLS, `infra/prometheus`, `infra/grafana` |
+| Genesis Salazar Tarazona | Product Owner + QA | `docs/`, backlog JIRA, README, informe final, `tests/`, SonarQube, seguridad |
 
 ## Estándares cubiertos
 
