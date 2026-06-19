@@ -17,18 +17,9 @@ services:
     ports:
       - "13306:3306"
 
-  asterisk:
-    # En dev hacemos bind-mount por archivo individual para poder editar configs
-    # y aplicar con `asterisk -rx "pjsip reload"` sin rebuild.
-    # NO bind-monto /etc/asterisk completo porque taparía los samples (voicemail.conf,
-    # indications.conf, etc.) que Asterisk requiere para arrancar.
-    volumes:
-      - ./infra/asterisk/configs/pjsip.conf:/etc/asterisk/pjsip.conf:ro
-      - ./infra/asterisk/configs/extensions.conf:/etc/asterisk/extensions.conf:ro
-      - ./infra/asterisk/configs/http.conf:/etc/asterisk/http.conf:ro
-      - ./infra/asterisk/configs/rtp.conf:/etc/asterisk/rtp.conf:ro
-      - ./infra/asterisk/configs/modules.conf:/etc/asterisk/modules.conf:ro
-      - ./infra/asterisk/configs/logger.conf:/etc/asterisk/logger.conf:ro
+  # mikopbx en dev no requiere overrides — la configuración se edita desde su
+  # GUI web (puerto 8090) o por REST API. El volumen mikopbx-data persiste
+  # todos los cambios entre `down` y `up`.
 
   integration-api:
     environment:
