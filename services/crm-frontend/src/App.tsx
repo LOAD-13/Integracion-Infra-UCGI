@@ -4,6 +4,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { ClientsPage } from "./pages/ClientsPage";
 import { ClientDetailPage } from "./pages/ClientDetailPage";
 import { ClientFormPage } from "./pages/ClientFormPage";
+import { MetricsPage } from "./pages/MetricsPage";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 
 export default function App() {
@@ -48,6 +49,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <ClientFormPage mode="edit" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/metrics"
+          element={
+            <ProtectedRoute>
+              <MetricsPage />
             </ProtectedRoute>
           }
         />
