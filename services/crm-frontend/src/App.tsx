@@ -5,6 +5,7 @@ import { ClientsPage } from "./pages/ClientsPage";
 import { ClientDetailPage } from "./pages/ClientDetailPage";
 import { ClientFormPage } from "./pages/ClientFormPage";
 import { MetricsPage } from "./pages/MetricsPage";
+import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 
 export default function App() {
@@ -57,6 +58,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <MetricsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <ProtectedRoute roles={["ADMIN"]}>
+              <AdminUsersPage />
             </ProtectedRoute>
           }
         />
