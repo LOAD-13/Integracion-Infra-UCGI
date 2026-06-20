@@ -7,6 +7,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,9 +31,13 @@ public class ClientController {
     @GetMapping
     public ResponseEntity<Page<ClientResponse>> list(
             @RequestParam(value = "q", required = false) String q,
+            @RequestParam(value = "assignedToMe", required = false, defaultValue = "false")
+            boolean assignedToMe,
+            Authentication auth,
             @PageableDefault(size = 20, sort = "name", direction = Sort.Direction.ASC)
             Pageable pageable) {
-        return ResponseEntity.ok(service.search(q, pageable));
+        Long agentUserId = assignedToMe ? service.resolveAgentUserId(auth.getName()) : null;
+        return ResponseEntity.ok(service.search(q, agentUserId, pageable));
     }
 
     @GetMapping("/{id}")

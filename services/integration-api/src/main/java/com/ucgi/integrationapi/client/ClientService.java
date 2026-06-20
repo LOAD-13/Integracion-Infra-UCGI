@@ -1,6 +1,7 @@
 package com.ucgi.integrationapi.client;
 
 import com.ucgi.integrationapi.error.ResourceNotFoundException;
+import com.ucgi.integrationapi.user.UserRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -10,15 +11,25 @@ import org.springframework.transaction.annotation.Transactional;
 public class ClientService {
 
     private final ClientRepository repository;
+    private final UserRepository userRepository;
 
-    public ClientService(ClientRepository repository) {
+    public ClientService(ClientRepository repository, UserRepository userRepository) {
         this.repository = repository;
+        this.userRepository = userRepository;
     }
 
     @Transactional(readOnly = true)
-    public Page<ClientResponse> search(String q, Pageable pageable) {
+    public Page<ClientResponse> search(String q, Long agentUserId, Pageable pageable) {
         String trimmed = (q == null || q.isBlank()) ? null : q.trim();
-        return repository.search(trimmed, pageable).map(ClientResponse::from);
+        return repository.search(trimmed, agentUserId, pageable).map(ClientResponse::from);
+    }
+
+    @Transactional(readOnly = true)
+    public Long resolveAgentUserId(String username) {
+        return userRepository.findByUsername(username)
+                .map(u -> u.getId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Usuario autenticado no encontrado: " + username));
     }
 
     @Transactional(readOnly = true)
