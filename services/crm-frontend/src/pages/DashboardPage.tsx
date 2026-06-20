@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { BarChart3, LogOut, Users } from "lucide-react";
+import { BarChart3, LogOut, Shield, Users } from "lucide-react";
 import { useAuth } from "@/auth/useAuth";
 import { Softphone } from "@/components/softphone/Softphone";
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,18 @@ export function DashboardPage() {
               </p>
               <p>KPIs del agente, llamadas por hora y duración media.</p>
             </Link>
+            {session?.role === "ADMIN" && (
+              <Link
+                to="/admin/users"
+                className="rounded-md border bg-primary/5 p-4 transition-colors hover:bg-primary/10"
+              >
+                <p className="flex items-center gap-2 font-medium text-foreground">
+                  <Shield aria-hidden="true" className="h-4 w-4" />
+                  Administración
+                </p>
+                <p>Gestión de usuarios y roles. Solo administradores.</p>
+              </Link>
+            )}
           </CardContent>
         </Card>
 
