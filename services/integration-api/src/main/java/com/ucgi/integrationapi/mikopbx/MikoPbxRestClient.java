@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -42,6 +43,7 @@ public class MikoPbxRestClient {
     private volatile String cachedToken;
     private volatile Instant cachedExpiresAt = Instant.EPOCH;
 
+    @Autowired
     public MikoPbxRestClient(MikoPbxProperties properties) {
         this(properties, defaultHttp(properties));
     }
@@ -172,10 +174,38 @@ public class MikoPbxRestClient {
     }
 
     private static HttpClient defaultHttp(MikoPbxProperties props) {
+        // MikoPBX redirige HTTP→HTTPS (301) cuando se accede desde la red
+        // docker — seguimos el redirect automáticamente para no tener que
+        // configurar el cliente con TLS skipping y un cert autofirmado.
         return HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(props.connectTimeoutMs()))
                 .version(HttpClient.Version.HTTP_1_1)
+                .followRedirects(HttpClient.Redirect.ALWAYS)
+                .sslContext(insecureSslContext())
                 .build();
+    }
+
+    /**
+     * SSLContext que confía en cualquier certificado — necesario porque el
+     * 301 de MikoPBX redirige a https:// con cert autofirmado. Solo aplica al
+     * tráfico interno docker (mikopbx no está expuesto al mundo con este cert).
+     */
+    private static javax.net.ssl.SSLContext insecureSslContext() {
+        try {
+            javax.net.ssl.SSLContext sc = javax.net.ssl.SSLContext.getInstance("TLS");
+            sc.init(null, new javax.net.ssl.TrustManager[]{
+                    new javax.net.ssl.X509TrustManager() {
+                        public void checkClientTrusted(java.security.cert.X509Certificate[] c, String a) {}
+                        public void checkServerTrusted(java.security.cert.X509Certificate[] c, String a) {}
+                        public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                            return new java.security.cert.X509Certificate[0];
+                        }
+                    }
+            }, new java.security.SecureRandom());
+            return sc;
+        } catch (Exception e) {
+            throw new IllegalStateException("No se pudo configurar SSLContext insecure", e);
+        }
     }
 
     public record CreatedEmployee(String id, String number) {

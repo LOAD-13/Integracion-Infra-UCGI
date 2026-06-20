@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
@@ -39,6 +40,7 @@ public class PjsipConfigWriter {
     private final SipExtensionRepository repository;
     private final Template template;
 
+    @Autowired
     public PjsipConfigWriter(SipExtensionRepository repository,
                              @Value(TEMPLATE_LOCATION) Resource templateResource) {
         this.repository = repository;

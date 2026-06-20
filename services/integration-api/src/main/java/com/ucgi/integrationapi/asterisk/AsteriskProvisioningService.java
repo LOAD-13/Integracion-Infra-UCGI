@@ -5,6 +5,7 @@ import com.ucgi.integrationapi.mikopbx.MikoPbxProperties;
 import com.ucgi.integrationapi.mikopbx.MikoPbxRestClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
@@ -32,6 +33,7 @@ public class AsteriskProvisioningService {
     private final MikoPbxProperties properties;
     private final Sleeper sleeper;
 
+    @Autowired
     public AsteriskProvisioningService(MikoPbxRestClient mikoPbxClient,
                                        MikoPbxProperties properties) {
         this(mikoPbxClient, properties, Thread::sleep);
