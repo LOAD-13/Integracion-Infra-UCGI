@@ -278,6 +278,28 @@ services:
     depends_on:
       - prometheus
 
+  # ===== ucgi-shaper (HU-08.5 versión mínima — IUDCYGI-164) =====
+  # Stub Flask que expone /status con el ancho de banda configurado por env.
+  # Sirve para que el `integration-api` ejerza el flujo HU-03.7 (polling
+  # cada 10 s, decisión de códec) sin depender todavía de `tc qdisc tbf`.
+  # La versión real (con iproute2 aplicando límites efectivos + métricas
+  # reales) entra en Sprint 4 — ver docs/notas-tecnicas/.
+  shaper:
+    build:
+      context: ./infra/shaper
+      dockerfile: Dockerfile
+    image: ucgi/shaper:0.1.0-mock
+    container_name: ucgi-shaper
+    restart: unless-stopped
+    environment:
+      MOCK_BANDWIDTH_MBPS: ${SHAPER_MOCK_BANDWIDTH_MBPS:-50}
+      MOCK_QDISC_ACTIVE: ${SHAPER_MOCK_QDISC_ACTIVE:-false}
+    ports:
+      - "9100:9100"
+    networks:
+      - ucgi-net
+      - ucgi-backend
+
 # ===== Networking =====
 # Red bridge dedicada para todo el stack UCGI. Todos los servicios joineen
 # explícitamente ucgi-net y ninguno usa la red `default` de compose.
@@ -292,6 +314,24 @@ services:
 networks:
   ucgi-net:
     name: ucgi-net
+    driver: bridge
+  # ============================================================
+  # Segmentación HU-07.8 (versión mínima — IUDCYGI-162)
+  # ============================================================
+  # Declaramos las 3 sub-networks que la HU-07.8 completa va a usar para
+  # aislar capas (ISO 27001 A.13.1.1). En esta versión mínima los servicios
+  # existentes siguen sobre `ucgi-net` y solo el `shaper` toma la network
+  # `ucgi-backend` — refactor de membresías llega con HU-07.8 versión
+  # completa en Sprint 4. Tenerlas declaradas evita romper el compose en
+  # cuanto se haga el refactor real.
+  ucgi-frontend:
+    name: ucgi-frontend
+    driver: bridge
+  ucgi-voip:
+    name: ucgi-voip
+    driver: bridge
+  ucgi-backend:
+    name: ucgi-backend
     driver: bridge
 
 # ===== Volúmenes nombrados =====
