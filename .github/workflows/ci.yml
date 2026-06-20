@@ -42,6 +42,10 @@ jobs:
         if: steps.detect.outputs.exists == 'true'
         working-directory: services/integration-api
         run: ./mvnw -B verify -DskipTests
+      - name: Run midPoint mapping unit tests
+        if: steps.detect.outputs.exists == 'true'
+        working-directory: services/integration-api
+        run: ./mvnw -B test -Dtest=MidpointMappingsTest
 
   lint-crm:
     name: Lint CRM (Node)

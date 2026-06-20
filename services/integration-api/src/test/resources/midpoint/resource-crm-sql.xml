@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  resource-crm-sql.xml — Recurso midPoint Scripted SQL contra crm.users.
+
+  Implementado para HU-05.1 (IUDCYGI-33). Permite a midPoint leer los usuarios
+  del CRM (admin + agentes) y considerarlos como una fuente de identidad
+  poblada por la vista admin del CRM (HU-04.8). El flujo inverso — midPoint
+  provisionando un usuario en la BD del CRM — entra con el mapping outbound
+  de HU-05.3 (rol AgenteCallCenter).
+
+  Usa el conector ConnId ScriptedSQL bundle ya incluido en midPoint 4.4.
+  Driver MariaDB cargado vía el classpath del contenedor.
+
+  Después del primer import (POST /midpoint/ws/rest/resources, ver
+  docs/midpoint/recursos.md) la UI muestra el recurso en Configuration →
+  Resources → "CRM SQL". Test Connection debe pasar todos los 4 checks
+  (Connector, Schema, Capabilities, Connection).
+-->
+<resource oid="11111111-1111-1111-1111-111111111111"
+          xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
+          xmlns:c="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
+          xmlns:icfs="http://midpoint.evolveum.com/xml/ns/public/connector/icf-1/resource-schema-3"
+          xmlns:icfc="http://midpoint.evolveum.com/xml/ns/public/connector/icf-1/connector-schema-3"
+          xmlns:ri="http://midpoint.evolveum.com/xml/ns/public/resource/instance-3"
+          xmlns:t="http://prism.evolveum.com/xml/ns/public/types-3"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+
+  <name>CRM SQL</name>
+  <description>
+    Fuente de identidad SQL que mapea la tabla crm.users a la entidad
+    UserType de midPoint. Solo lectura inicial — HU-05.3 introduce el path
+    inverso (midPoint outbound → API → MikoPBX provisioning).
+  </description>
+
+  <connectorRef type="ConnectorType">
+    <filter>
+      <q:equal xmlns:q="http://prism.evolveum.com/xml/ns/public/query-3">
+        <q:path>connectorType</q:path>
+        <q:value>org.identityconnectors.databasetable.DatabaseTableConnector</q:value>
+      </q:equal>
+    </filter>
+  </connectorRef>
+
+  <connectorConfiguration xmlns:gen="http://midpoint.evolveum.com/xml/ns/public/connector/icf-1/connector-schema-3">
+    <icfc:configurationProperties
+        xmlns:icfc="http://midpoint.evolveum.com/xml/ns/public/connector/icf-1/connector-schema-3"
+        xmlns:ext="http://midpoint.evolveum.com/xml/ns/public/connector/icf-1/bundle/org.forgerock.openicf.connectors.db.databasetable/org.identityconnectors.databasetable.DatabaseTableConnector">
+      <ext:host>db</ext:host>
+      <ext:port>3306</ext:port>
+      <ext:user>ucgi_app</ext:user>
+      <ext:password>
+        <t:clearValue>changeme-app</t:clearValue>
+      </ext:password>
+      <ext:database>crm</ext:database>
+      <ext:table>users</ext:table>
+      <ext:keyColumn>id</ext:keyColumn>
+      <ext:passwordColumn>password_hash</ext:passwordColumn>
+      <ext:jdbcDriver>org.mariadb.jdbc.Driver</ext:jdbcDriver>
+      <ext:jdbcUrlTemplate>jdbc:mariadb://%h:%p/%d</ext:jdbcUrlTemplate>
+      <ext:allNative>true</ext:allNative>
+      <ext:rethrowAllSQLExceptions>true</ext:rethrowAllSQLExceptions>
+      <ext:enableEmptyString>false</ext:enableEmptyString>
+      <ext:nativeTimestamps>true</ext:nativeTimestamps>
+    </icfc:configurationProperties>
+    <icfc:resultsHandlerConfiguration>
+      <icfc:enableNormalizingResultsHandler>true</icfc:enableNormalizingResultsHandler>
+      <icfc:enableFilteredResultsHandler>true</icfc:enableFilteredResultsHandler>
+      <icfc:enableAttributesToGetSearchResultsHandler>true</icfc:enableAttributesToGetSearchResultsHandler>
+    </icfc:resultsHandlerConfiguration>
+  </connectorConfiguration>
+
+  <schemaHandling>
+    <objectType>
+      <kind>account</kind>
+      <intent>default</intent>
+      <displayName>Cuenta CRM SQL</displayName>
+      <default>true</default>
+      <objectClass>ri:AccountObjectClass</objectClass>
+
+      <attribute>
+        <ref>ri:username</ref>
+        <displayName>Username</displayName>
+        <outbound>
+          <source>
+            <path>$user/name</path>
+          </source>
+        </outbound>
+        <inbound>
+          <target>
+            <path>$focus/name</path>
+          </target>
+        </inbound>
+      </attribute>
+
+      <attribute>
+        <ref>ri:email</ref>
+        <displayName>Email</displayName>
+        <outbound>
+          <source>
+            <path>$user/emailAddress</path>
+          </source>
+        </outbound>
+        <inbound>
+          <target>
+            <path>$focus/emailAddress</path>
+          </target>
+        </inbound>
+      </attribute>
+
+      <attribute>
+        <ref>ri:full_name</ref>
+        <displayName>Nombre completo</displayName>
+        <outbound>
+          <source>
+            <path>$user/fullName</path>
+          </source>
+        </outbound>
+        <inbound>
+          <target>
+            <path>$focus/fullName</path>
+          </target>
+        </inbound>
+      </attribute>
+
+      <attribute>
+        <ref>ri:role</ref>
+        <displayName>Rol CRM</displayName>
+        <inbound>
+          <target>
+            <path>$focus/extension/crmRole</path>
+          </target>
+        </inbound>
+      </attribute>
+
+      <activation>
+        <existence>
+          <outbound/>
+        </existence>
+        <administrativeStatus>
+          <outbound>
+            <source>
+              <path>$user/activation/administrativeStatus</path>
+            </source>
+            <expression>
+              <script>
+                <code>input == 'enabled' ? true : false</code>
+              </script>
+            </expression>
+          </outbound>
+          <inbound>
+            <expression>
+              <script>
+                <code>input ? 'enabled' : 'disabled'</code>
+              </script>
+            </expression>
+            <target>
+              <path>$focus/activation/administrativeStatus</path>
+            </target>
+          </inbound>
+        </administrativeStatus>
+      </activation>
+
+      <credentials>
+        <password>
+          <outbound>
+            <strength>weak</strength>
+            <expression>
+              <asIs/>
+            </expression>
+          </outbound>
+        </password>
+      </credentials>
+    </objectType>
+  </schemaHandling>
+
+  <capabilities>
+    <configured xmlns:cap="http://midpoint.evolveum.com/xml/ns/public/resource/capabilities-3">
+      <cap:activation>
+        <cap:status>
+          <cap:attribute>ri:active</cap:attribute>
+          <cap:enableValue>true</cap:enableValue>
+          <cap:disableValue>false</cap:disableValue>
+        </cap:status>
+      </cap:activation>
+    </configured>
+  </capabilities>
+
+  <synchronization>
+    <objectSynchronization>
+      <name>Sincronización CRM</name>
+      <enabled>true</enabled>
+      <correlation>
+        <q:equal xmlns:q="http://prism.evolveum.com/xml/ns/public/query-3">
+          <q:path>name</q:path>
+          <expression>
+            <path>$account/attributes/ri:username</path>
+          </expression>
+        </q:equal>
+      </correlation>
+      <reaction>
+        <situation>linked</situation>
+        <synchronize>true</synchronize>
+      </reaction>
+      <reaction>
+        <situation>unlinked</situation>
+        <action>
+          <handlerUri>http://midpoint.evolveum.com/xml/ns/public/model/action-3#link</handlerUri>
+        </action>
+      </reaction>
+      <reaction>
+        <situation>unmatched</situation>
+        <action>
+          <handlerUri>http://midpoint.evolveum.com/xml/ns/public/model/action-3#addFocus</handlerUri>
+        </action>
+      </reaction>
+    </objectSynchronization>
+  </synchronization>
+</resource>
