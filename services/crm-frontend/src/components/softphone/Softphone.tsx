@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   Mic,
   MicOff,
@@ -8,6 +8,8 @@ import {
   PhoneMissed,
   PhoneOff,
   Play,
+  Video,
+  VideoOff,
 } from "lucide-react";
 import { useSip } from "@/sip/useSip";
 import type { CallState, RegistrationState } from "@/sip/sip-types";
@@ -39,8 +41,32 @@ const CALL_LABEL: Record<CallState, string> = {
 };
 
 export function Softphone() {
-  const { state, call, answer, hangup, toggleMute, toggleHold } = useSip();
+  const {
+    state,
+    call,
+    answer,
+    hangup,
+    toggleMute,
+    toggleHold,
+    toggleVideo,
+    localStream,
+    remoteStream,
+  } = useSip();
   const [target, setTarget] = useState("");
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = localStream ?? null;
+    }
+  }, [localStream]);
+
+  useEffect(() => {
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = remoteStream ?? null;
+    }
+  }, [remoteStream]);
 
   const inCall = state.call === "connected" || state.call === "on-hold";
   const isIncoming = state.call === "incoming";
@@ -124,6 +150,39 @@ export function Softphone() {
           </p>
         </form>
 
+        {!state.cameraAvailable && (
+          <p
+            role="alert"
+            className="text-xs text-destructive"
+            data-testid="camera-warning"
+          >
+            La cámara no está disponible — el softphone seguirá funcionando en modo
+            solo-audio.
+          </p>
+        )}
+
+        {(state.videoEnabled || remoteStream) && (
+          <div className="grid gap-2 sm:grid-cols-2" data-testid="video-surfaces">
+            <video
+              ref={remoteVideoRef}
+              autoPlay
+              playsInline
+              className="aspect-video w-full rounded-md bg-black object-cover"
+              aria-label="Video remoto del interlocutor"
+              data-testid="remote-video"
+            />
+            <video
+              ref={localVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="aspect-video w-full rounded-md bg-black object-cover"
+              aria-label="Tu propio video (cámara local)"
+              data-testid="local-video"
+            />
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-2">
           {isIncoming && (
             <Button
@@ -150,6 +209,30 @@ export function Softphone() {
                 <>
                   <PhoneOff aria-hidden="true" className="mr-1 h-4 w-4" />
                   Colgar
+                </>
+              )}
+            </Button>
+          )}
+          {state.call === "idle" && state.registration === "registered" && (
+            <Button
+              variant="outline"
+              onClick={() => toggleVideo()}
+              aria-pressed={state.videoEnabled}
+              aria-label={
+                state.videoEnabled
+                  ? "Desactivar video para próximas llamadas"
+                  : "Activar video para próximas llamadas"
+              }
+            >
+              {state.videoEnabled ? (
+                <>
+                  <VideoOff aria-hidden="true" className="mr-1 h-4 w-4" />
+                  Video activo
+                </>
+              ) : (
+                <>
+                  <Video aria-hidden="true" className="mr-1 h-4 w-4" />
+                  Activar video
                 </>
               )}
             </Button>

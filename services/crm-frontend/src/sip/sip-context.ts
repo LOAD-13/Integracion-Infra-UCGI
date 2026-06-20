@@ -8,6 +8,9 @@ export interface SipContextValue {
   hangup: () => Promise<void>;
   toggleMute: () => void;
   toggleHold: () => Promise<void>;
+  toggleVideo: () => Promise<void>;
+  localStream: MediaStream | null;
+  remoteStream: MediaStream | null;
 }
 
 export const SipContext = createContext<SipContextValue | undefined>(undefined);

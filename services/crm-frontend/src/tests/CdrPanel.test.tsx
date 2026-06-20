@@ -20,6 +20,9 @@ function sipCtx(initial: Partial<SipState> = {}): {
       hangup: vi.fn(),
       toggleMute: vi.fn(),
       toggleHold: vi.fn(),
+      toggleVideo: vi.fn(async () => {}),
+      localStream: null,
+      remoteStream: null,
     },
     stub,
   };

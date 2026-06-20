@@ -15,6 +15,7 @@ import {
 } from "./sip-types";
 
 type Listener = (state: SipState) => void;
+type StreamListener = (stream: MediaStream | null) => void;
 
 /**
  * Envoltorio de sip.js orientado al softphone del CRM.
@@ -30,6 +31,8 @@ export class SipClient {
   private registerer: Registerer | null = null;
   private session: Session | null = null;
   private listener: Listener | null = null;
+  private localStreamListener: StreamListener | null = null;
+  private remoteStreamListener: StreamListener | null = null;
   private state: SipState = { ...INITIAL_STATE };
 
   constructor(config: SipConfig) {
@@ -39,6 +42,32 @@ export class SipClient {
   onStateChange(listener: Listener): void {
     this.listener = listener;
     listener(this.state);
+  }
+
+  onLocalStream(listener: StreamListener): void {
+    this.localStreamListener = listener;
+  }
+
+  onRemoteStream(listener: StreamListener): void {
+    this.remoteStreamListener = listener;
+  }
+
+  async toggleVideo(): Promise<void> {
+    if (this.state.videoEnabled) {
+      this.update({ videoEnabled: false });
+      this.localStreamListener?.(null);
+      return;
+    }
+    try {
+      const probe = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: true,
+      });
+      this.localStreamListener?.(probe);
+      this.update({ videoEnabled: true, cameraAvailable: true });
+    } catch {
+      this.update({ videoEnabled: false, cameraAvailable: false });
+    }
   }
 
   async connect(): Promise<void> {
@@ -111,13 +140,21 @@ export class SipClient {
     }
     const inviter = new Inviter(this.userAgent, targetUri);
     this.attachOutgoing(inviter, cleaned);
-    await inviter.invite();
+    await inviter.invite({
+      sessionDescriptionHandlerOptions: {
+        constraints: { audio: true, video: this.state.videoEnabled },
+      } as unknown as Record<string, unknown>,
+    });
   }
 
   async answer(): Promise<void> {
     if (!this.session || this.state.call !== "incoming") return;
     if ("accept" in this.session && typeof this.session.accept === "function") {
-      await (this.session as Invitation).accept();
+      await (this.session as Invitation).accept({
+        sessionDescriptionHandlerOptions: {
+          constraints: { audio: true, video: this.state.videoEnabled },
+        } as unknown as Record<string, unknown>,
+      });
     }
   }
 
@@ -191,14 +228,30 @@ export class SipClient {
     switch (state) {
       case SessionState.Established:
         this.update({ call: "connected", muted: false });
+        this.exposeRemoteStream();
         break;
       case SessionState.Terminated:
         this.session = null;
+        this.remoteStreamListener?.(null);
+        this.localStreamListener?.(null);
         this.update({ call: "idle", remoteIdentity: null, muted: false });
         break;
       default:
         break;
     }
+  }
+
+  private exposeRemoteStream(): void {
+    const handler = this.session?.sessionDescriptionHandler as unknown as
+      | { peerConnection?: RTCPeerConnection }
+      | undefined;
+    const pc = handler?.peerConnection;
+    if (!pc) return;
+    const remote = new MediaStream();
+    pc.getReceivers().forEach((receiver) => {
+      if (receiver.track) remote.addTrack(receiver.track);
+    });
+    this.remoteStreamListener?.(remote);
   }
 
   private setMuted(muted: boolean): void {

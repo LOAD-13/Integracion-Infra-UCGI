@@ -34,6 +34,9 @@ function buildSipContext(initial: Partial<SipState> = {}): {
     hangup: stub.hangup,
     toggleMute: stub.toggleMute,
     toggleHold: stub.toggleHold,
+    toggleVideo: vi.fn(async () => {}),
+    localStream: null,
+    remoteStream: null,
   };
   // Define setter para forzar re-render desde el test
   function setState(patch: Partial<SipState>) {
