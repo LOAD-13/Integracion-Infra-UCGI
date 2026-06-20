@@ -42,10 +42,10 @@ jobs:
         if: steps.detect.outputs.exists == 'true'
         working-directory: services/integration-api
         run: ./mvnw -B verify -DskipTests
-      - name: Run midPoint mapping unit tests
+      - name: Run midPoint mapping + shaper unit tests
         if: steps.detect.outputs.exists == 'true'
         working-directory: services/integration-api
-        run: ./mvnw -B test -Dtest=MidpointMappingsTest
+        run: ./mvnw -B test -Dtest='MidpointMappingsTest,ShaperPolicyTest,ShaperPollingServiceTest'
 
   lint-crm:
     name: Lint CRM (Node)
