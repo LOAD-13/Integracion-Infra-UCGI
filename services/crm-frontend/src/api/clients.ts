@@ -31,6 +31,7 @@ export interface PageResponse<T> {
 
 export interface ListParams {
   q?: string;
+  assignedToMe?: boolean;
   page?: number;
   size?: number;
   sort?: string;
@@ -39,6 +40,7 @@ export interface ListParams {
 function buildQuery(params: ListParams = {}): string {
   const search = new URLSearchParams();
   if (params.q) search.set("q", params.q);
+  if (params.assignedToMe) search.set("assignedToMe", "true");
   if (params.page !== undefined) search.set("page", String(params.page));
   if (params.size !== undefined) search.set("size", String(params.size));
   if (params.sort) search.set("sort", params.sort);
