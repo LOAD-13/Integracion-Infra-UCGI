@@ -18,6 +18,10 @@ export interface SipState {
   remoteIdentity: string | null;
   errorMessage: string | null;
   muted: boolean;
+  /** Si el agente quiere video en las próximas llamadas. */
+  videoEnabled: boolean;
+  /** Si la cámara está realmente disponible (false tras un fallback). */
+  cameraAvailable: boolean;
 }
 
 export const INITIAL_STATE: SipState = {
@@ -26,6 +30,8 @@ export const INITIAL_STATE: SipState = {
   remoteIdentity: null,
   errorMessage: null,
   muted: false,
+  videoEnabled: false,
+  cameraAvailable: true,
 };
 
 export interface SipCredentials {

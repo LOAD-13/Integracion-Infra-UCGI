@@ -27,6 +27,8 @@ export function SipProvider({
 }: SipProviderProps) {
   const { session } = useAuth();
   const [state, setState] = useState<SipState>(INITIAL_STATE);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const clientRef = useRef<SipClient | null>(null);
 
   const resetState = useCallback(
@@ -54,6 +56,8 @@ export function SipProvider({
           domain: import.meta.env.VITE_SIP_DOMAIN,
         });
         client.onStateChange((next) => setState(next));
+        client.onLocalStream((stream) => setLocalStream(stream));
+        client.onRemoteStream((stream) => setRemoteStream(stream));
         clientRef.current = client;
         await client.connect();
       } catch (err) {
@@ -95,9 +99,33 @@ export function SipProvider({
     await clientRef.current?.toggleHold();
   }, []);
 
+  const toggleVideo = useCallback(async () => {
+    await clientRef.current?.toggleVideo();
+  }, []);
+
   const value = useMemo(
-    () => ({ state, call, answer, hangup, toggleMute, toggleHold }),
-    [state, call, answer, hangup, toggleMute, toggleHold],
+    () => ({
+      state,
+      call,
+      answer,
+      hangup,
+      toggleMute,
+      toggleHold,
+      toggleVideo,
+      localStream,
+      remoteStream,
+    }),
+    [
+      state,
+      call,
+      answer,
+      hangup,
+      toggleMute,
+      toggleHold,
+      toggleVideo,
+      localStream,
+      remoteStream,
+    ],
   );
 
   return <SipContext.Provider value={value}>{children}</SipContext.Provider>;
