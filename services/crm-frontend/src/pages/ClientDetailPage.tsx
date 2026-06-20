@@ -4,6 +4,7 @@ import { ArrowLeft, Pencil } from "lucide-react";
 import { useAuth } from "@/auth/useAuth";
 import { deleteClient, getClient, type Client } from "@/api/clients";
 import { CdrPanel } from "@/components/cdr/CdrPanel";
+import { NotesPanel } from "@/components/notes/NotesPanel";
 import { DeleteClientDialog } from "@/components/clients/DeleteClientDialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -122,12 +123,9 @@ export function ClientDetailPage() {
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Notas detalladas</CardTitle>
-              <CardDescription>
-                Editor con autosave llega con HU-04.6.
-              </CardDescription>
-            </CardHeader>
+            <CardContent className="pt-6">
+              <NotesPanel clientId={client.id} />
+            </CardContent>
           </Card>
         </>
       )}
