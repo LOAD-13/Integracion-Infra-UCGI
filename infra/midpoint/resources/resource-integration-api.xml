@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  resource-integration-api.xml — Recurso midPoint REST hacia integration-api.
+
+  Implementa HU-05.2 (IUDCYGI-34). Cuando un UserType en midPoint recibe el
+  rol AgenteCallCenter (HU-05.3), midPoint dispara el outbound mapping de
+  este recurso → POST /api/v1/sip-extensions del integration-api, que a su
+  vez crea la extensión real en MikoPBX vía el MikoPbxRestClient (HU-03.8).
+
+  Conector: ConnId ScriptedREST (org.identityconnectors.scriptedrest). Los
+  scripts Groovy embebidos abajo cubren CREATE/UPDATE/DELETE/SEARCH/TEST.
+
+  Auth: el script obtiene un JWT del propio integration-api mediante
+  POST /api/v1/auth/login con un usuario técnico (configurable vía
+  `serviceUsername`/`servicePassword`), lo cachea por 50 min y lo inyecta
+  como Bearer en cada llamada.
+-->
+<resource oid="22222222-2222-2222-2222-222222222222"
+          xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
+          xmlns:c="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
+          xmlns:icfs="http://midpoint.evolveum.com/xml/ns/public/connector/icf-1/resource-schema-3"
+          xmlns:icfc="http://midpoint.evolveum.com/xml/ns/public/connector/icf-1/connector-schema-3"
+          xmlns:ri="http://midpoint.evolveum.com/xml/ns/public/resource/instance-3"
+          xmlns:t="http://prism.evolveum.com/xml/ns/public/types-3">
+
+  <name>Integration API REST</name>
+  <description>
+    Recurso REST que provisiona extensiones SIP en MikoPBX a través del
+    integration-api. Asignación del rol AgenteCallCenter (HU-05.3) dispara
+    POST /api/v1/sip-extensions.
+  </description>
+
+  <connectorRef type="ConnectorType">
+    <filter>
+      <q:equal xmlns:q="http://prism.evolveum.com/xml/ns/public/query-3">
+        <q:path>connectorType</q:path>
+        <q:value>org.identityconnectors.scriptedrest.ScriptedRESTConnector</q:value>
+      </q:equal>
+    </filter>
+  </connectorRef>
+
+  <connectorConfiguration>
+    <icfc:configurationProperties
+        xmlns:ext="http://midpoint.evolveum.com/xml/ns/public/connector/icf-1/bundle/org.forgerock.openicf.connectors.scriptedrest.ScriptedRESTConnector/org.identityconnectors.scriptedrest.ScriptedRESTConnector">
+      <ext:serviceAddress>http://integration-api:8081</ext:serviceAddress>
+      <ext:username>admin</ext:username>
+      <ext:password>
+        <t:clearValue>5ecr3t</t:clearValue>
+      </ext:password>
+      <ext:defaultAuthMethod>BASIC</ext:defaultAuthMethod>
+
+      <!-- Scripts Groovy embebidos (en producción se montarían como archivos
+           bajo /opt/midpoint/var/lib/midpoint/scripts/). Para el lab se
+           mantienen aquí para que el repo sea autocontenido. -->
+      <ext:testScriptFileName>TestREST.groovy</ext:testScriptFileName>
+      <ext:searchScriptFileName>SearchREST.groovy</ext:searchScriptFileName>
+      <ext:createScriptFileName>CreateREST.groovy</ext:createScriptFileName>
+      <ext:updateScriptFileName>UpdateREST.groovy</ext:updateScriptFileName>
+      <ext:deleteScriptFileName>DeleteREST.groovy</ext:deleteScriptFileName>
+      <ext:schemaScriptFileName>SchemaREST.groovy</ext:schemaScriptFileName>
+      <ext:scriptRoots>/opt/midpoint/var/lib/midpoint/scripts/integration-api</ext:scriptRoots>
+    </icfc:configurationProperties>
+  </connectorConfiguration>
+
+  <schemaHandling>
+    <objectType>
+      <kind>account</kind>
+      <intent>default</intent>
+      <displayName>Extensión SIP</displayName>
+      <default>true</default>
+      <objectClass>ri:AccountObjectClass</objectClass>
+
+      <attribute>
+        <ref>ri:username</ref>
+        <displayName>Username del agente</displayName>
+        <outbound>
+          <source>
+            <path>$user/name</path>
+          </source>
+        </outbound>
+      </attribute>
+
+      <attribute>
+        <ref>ri:displayName</ref>
+        <displayName>Display name SIP</displayName>
+        <outbound>
+          <source>
+            <path>$user/fullName</path>
+          </source>
+        </outbound>
+      </attribute>
+
+      <attribute>
+        <ref>ri:extensionNumber</ref>
+        <displayName>Extensión asignada</displayName>
+        <outbound>
+          <strength>strong</strength>
+          <expression>
+            <script>
+              <code>
+                // 1000 + último octeto del UUID del UserType, módulo 99.
+                // Devuelve "1000".."1099". Suficiente para el rango del lab
+                // (RTP 10000-10200 da margen para ~100 cuentas).
+                def hash = basic.uuidV5(null, midpoint.focus?.oid ?: "anonymous")
+                def n = Integer.parseInt(hash[-2..-1], 16)
+                return "1" + String.format("%03d", n % 100)
+              </code>
+            </script>
+          </expression>
+        </outbound>
+      </attribute>
+
+      <attribute>
+        <ref>ri:sipPassword</ref>
+        <displayName>Secret SIP</displayName>
+        <outbound>
+          <strength>strong</strength>
+          <expression>
+            <script>
+              <code>
+                // Genera un secret de 24 chars con la PRNG de Java. El secret
+                // se persiste en crm.sip_extensions a través del integration-api.
+                def bytes = new byte[18]
+                java.security.SecureRandom.instance.nextBytes(bytes)
+                Base64.encoder.encodeToString(bytes).replace("=", "").replace("+", "-").replace("/", "_")
+              </code>
+            </script>
+          </expression>
+        </outbound>
+      </attribute>
+    </objectType>
+  </schemaHandling>
+
+  <capabilities>
+    <configured xmlns:cap="http://midpoint.evolveum.com/xml/ns/public/resource/capabilities-3">
+      <cap:create>
+        <cap:enabled>true</cap:enabled>
+      </cap:create>
+      <cap:delete>
+        <cap:enabled>true</cap:enabled>
+      </cap:delete>
+      <cap:update>
+        <cap:enabled>true</cap:enabled>
+      </cap:update>
+      <cap:read>
+        <cap:enabled>true</cap:enabled>
+      </cap:read>
+      <cap:testConnection>
+        <cap:enabled>true</cap:enabled>
+      </cap:testConnection>
+    </configured>
+  </capabilities>
+</resource>

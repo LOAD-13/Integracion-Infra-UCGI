@@ -59,11 +59,46 @@
 
 ## Integration API REST
 
-**Archivo:** `infra/midpoint/resources/resource-api-rest.xml` (HU-05.2).
+**Archivo:** `infra/midpoint/resources/resource-integration-api.xml` (HU-05.2).
 
-El conector Scripted REST envía requests al `integration-api` para
-provisionar/desprovisionar extensiones SIP. Documentación detallada al
-cerrar HU-05.2.
+Conector Scripted REST con scripts Groovy embebidos en
+`infra/midpoint/scripts/integration-api/`:
+
+| Script | Responsabilidad |
+|---|---|
+| `TestREST.groovy` | Test Connection — `GET /actuator/health` debe responder UP. |
+| `SchemaREST.groovy` | Define `__ACCOUNT__` con `extensionNumber` (key, no actualizable) + `sipPassword` + `displayName`. |
+| `CreateREST.groovy` | `POST /api/v1/sip-extensions`; 409 → idempotente; relogin si 401. |
+| `UpdateREST.groovy` | `PUT /api/v1/sip-extensions/{id}`; noop si el endpoint no existe todavía. |
+| `DeleteREST.groovy` | `DELETE /api/v1/sip-extensions/{id}`; 404 idempotente. |
+| `SearchREST.groovy` | `GET /api/v1/sip-extensions` paginado → ConnectorObjects. |
+
+**Auth:** los scripts hacen login técnico contra `POST /api/v1/auth/login`
+con el user/password configurado en el resource (admin / `5ecr3t` en dev).
+El JWT se obtiene por llamada — en producción se cachearía en una variable
+estática del script con TTL 50 min.
+
+**Cómo importar:**
+
+```bash
+# 1. Montar scripts en el contenedor midPoint (Dockerfile HU-05.x):
+#    COPY infra/midpoint/scripts /opt/midpoint/var/lib/midpoint/scripts
+# 2. Importar el XML del recurso:
+curl -k -u administrator:$MP_ADMIN_PASSWORD \
+  -H "Content-Type: application/xml" \
+  -X POST \
+  --data-binary @infra/midpoint/resources/resource-integration-api.xml \
+  https://localhost:8443/midpoint/ws/rest/resources
+```
+
+### Mapeo de atributos
+
+| Atributo midPoint | Atributo CRM/MikoPBX | Outbound |
+|---|---|---|
+| `ri:username` | `crm.sip_extensions.user.username` | `$user/name` |
+| `ri:displayName` | `crm.sip_extensions.display_name` | `$user/fullName` |
+| `ri:extensionNumber` | `crm.sip_extensions.extension_number` | UUID-derived (1000-1099) |
+| `ri:sipPassword` | `crm.sip_extensions.sip_password` | secure random 24 chars |
 
 ## Rol AgenteCallCenter
 
