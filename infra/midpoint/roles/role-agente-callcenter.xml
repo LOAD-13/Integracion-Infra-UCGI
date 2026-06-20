@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  role-agente-callcenter.xml — Rol midPoint que provisiona una extensión SIP.
+
+  Implementa HU-05.3 (IUDCYGI-35). Asignar este rol a un UserType de midPoint
+  dispara el outbound mapping del recurso REST (HU-05.2) → POST /api/v1/sip-extensions
+  del integration-api → MikoPbxRestClient.createEmployee (HU-03.8).
+
+  Política de password:
+    - Generado por el outbound mapping `sipPassword` en el resource REST
+      (24 chars URL-safe base64 desde SecureRandom).
+    - >= 12 caracteres (criterio DoD), realmente 24.
+    - No se persiste en midPoint — viaja solo al integration-api en el POST.
+
+  El número de extensión también se deriva en el resource REST (UUID-based).
+-->
+<role oid="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+      xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
+      xmlns:c="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
+      xmlns:t="http://prism.evolveum.com/xml/ns/public/types-3">
+
+  <name>AgenteCallCenter</name>
+  <displayName>Agente del Call Center</displayName>
+  <description>
+    Rol que habilita a un usuario como agente del CRM UCGI. Al asignarse:
+      1. Outbound al recurso Integration API REST crea la extensión SIP.
+      2. Outbound al recurso CRM SQL (si está activo) actualiza `role=AGENTE`.
+      3. El integration-api propaga el alta a MikoPBX vía HU-03.8.
+    SLA esperado: extensión visible en `pjsip show endpoints` ≤ 30 s después
+    del save en la UI midPoint.
+  </description>
+
+  <riskLevel>low</riskLevel>
+
+  <inducement>
+    <construction>
+      <resourceRef oid="22222222-2222-2222-2222-222222222222" type="ResourceType"/>
+      <kind>account</kind>
+      <intent>default</intent>
+    </construction>
+    <order>1</order>
+  </inducement>
+
+  <inducement>
+    <construction>
+      <resourceRef oid="11111111-1111-1111-1111-111111111111" type="ResourceType"/>
+      <kind>account</kind>
+      <intent>default</intent>
+      <attribute>
+        <ref>ri:role</ref>
+        <outbound>
+          <strength>strong</strength>
+          <expression>
+            <value>AGENTE</value>
+          </expression>
+        </outbound>
+      </attribute>
+    </construction>
+    <order>1</order>
+  </inducement>
+
+  <authorization>
+    <action>http://midpoint.evolveum.com/xml/ns/public/security/authorization-model-3#read</action>
+    <object>
+      <type>UserType</type>
+      <filter>
+        <q:equal xmlns:q="http://prism.evolveum.com/xml/ns/public/query-3">
+          <q:path>roleMembershipRef</q:path>
+          <q:value oid="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" type="RoleType"/>
+        </q:equal>
+      </filter>
+    </object>
+  </authorization>
+</role>

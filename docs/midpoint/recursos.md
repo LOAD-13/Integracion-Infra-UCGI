@@ -102,8 +102,53 @@ curl -k -u administrator:$MP_ADMIN_PASSWORD \
 
 ## Rol AgenteCallCenter
 
-**Archivo:** `infra/midpoint/roles/role-agente-callcenter.xml` (HU-05.3).
+**Archivo:** `infra/midpoint/roles/role-agente-callcenter.xml`. OID
+`aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa`.
 
-Define el rol cuya asignación a un `UserType` dispara el outbound mapping
-hacia el recurso REST → API → MikoPBX provisioning. Documentación al cerrar
-HU-05.3.
+Cuando se asigna a un `UserType`, dispara dos inducements paralelos:
+
+1. **`construction` → CRM SQL (OID 1111…)** con `role=AGENTE` strong outbound.
+2. **`construction` → Integration API REST (OID 2222…)** que crea la
+   extensión SIP y dispara la cadena hacia MikoPBX.
+
+### Política de password SIP
+
+El password se genera dentro del recurso REST (no en el rol) — con
+`SecureRandom` + Base64 URL-safe de 24 caracteres (`>= 12` del DoD,
+generosos para no acoplarnos a una política mínima específica que pueda
+cambiar). Nunca se persiste en midPoint: solo viaja al `integration-api` en
+el POST y queda almacenado en `crm.sip_extensions.sip_password`.
+
+### Política de número de extensión
+
+Derivado del UUID del focus midPoint (script Groovy en
+`SearchREST.groovy` / `CreateREST.groovy`): `"1" + (hashLast2 % 100)` → rango
+`1000..1099`. Cubre ~100 agentes — suficiente para el lab; en producción se
+migraría a un contador secuencial en DB.
+
+### SLA
+
+- Asignación → extensión visible en MikoPBX en ≤ 30 s.
+- El integration-api responde a POST `/sip-extensions` en ≤ 2 s típicos;
+  los ~25 s restantes son margen para reintentos exponenciales del
+  `AsteriskProvisioningService` (HU-03.8 fase 1, ahora MikoPBX).
+
+### Cómo importar el rol
+
+```bash
+curl -k -u administrator:$MP_ADMIN_PASSWORD \
+  -H "Content-Type: application/xml" \
+  -X POST \
+  --data-binary @infra/midpoint/roles/role-agente-callcenter.xml \
+  https://localhost:8443/midpoint/ws/rest/roles
+```
+
+### Cómo probar manualmente
+
+1. Crear un `UserType` en midPoint UI (Users → New User).
+2. Assignments tab → Assign → seleccionar `AgenteCallCenter` → Save.
+3. Esperar ≤ 30 s.
+4. Verificar en MikoPBX GUI (`http://localhost:8090` → Telephony → Employees)
+   que la extensión nueva aparece.
+5. (Opcional) `docker exec ucgi-mikopbx asterisk -rx "pjsip show endpoints"`
+   debe listar la extensión.
