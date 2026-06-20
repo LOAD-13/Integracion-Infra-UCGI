@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Pencil } from "lucide-react";
 import { useAuth } from "@/auth/useAuth";
 import { deleteClient, getClient, type Client } from "@/api/clients";
+import { CdrPanel } from "@/components/cdr/CdrPanel";
 import { DeleteClientDialog } from "@/components/clients/DeleteClientDialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -111,24 +112,23 @@ export function ClientDetailPage() {
             </CardContent>
           </Card>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Histórico de llamadas</CardTitle>
-                <CardDescription>
-                  Disponible cuando se implemente HU-04.5 (CDR por cliente).
-                </CardDescription>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Notas detalladas</CardTitle>
-                <CardDescription>
-                  Editor con autosave llega con HU-04.6.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </div>
+          <Card>
+            <CardContent className="pt-6">
+              <CdrPanel
+                clientId={client.id}
+                fallbackNumber={client.phone}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Notas detalladas</CardTitle>
+              <CardDescription>
+                Editor con autosave llega con HU-04.6.
+              </CardDescription>
+            </CardHeader>
+          </Card>
         </>
       )}
     </div>
