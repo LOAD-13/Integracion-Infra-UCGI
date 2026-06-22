@@ -158,4 +158,73 @@ else
   log "Cert TLS ya contiene SAN 'mikopbx'. Nada que hacer."
 fi
 
+# ---------- Parche endpoint-auto → webrtc=yes (ambidextro UDP/TCP/WSS) ----------
+#
+# MikoPBX define cuatro plantillas de endpoint en pjsip.conf:
+#   - endpoint-auto: transport vacío → matchea CUALQUIER transport.
+#   - endpoint-udp : transport = transport-udp
+#   - endpoint-tcp : transport = transport-tcp
+#   - endpoint-wss : transport = transport-wss + webrtc = yes
+#
+# El endpoint principal del agente (`[1001]`, `[1002]`, etc.) usa la plantilla
+# (endpoint-auto). Captura los INVITE entrantes de cualquier transport, pero
+# sin `webrtc=yes` rechaza el SDP `UDP/TLS/RTP/SAVPF` del browser CRM con
+# `488 Not Acceptable Here` — porque opus/AVPF/DTLS no están aceptados.
+#
+# Fix: añadir `webrtc=yes` al template `endpoint-auto`. La directiva activa:
+#   - `use_avpf=yes`, `media_encryption=dtls`, `ice_support=yes`,
+#     `rtcp_mux=yes`, `dtls_auto_generate_cert=yes` (WebRTC requirements).
+#   - Pero `force_avp=no` (default en Asterisk ≥16), lo cual hace que el
+#     endpoint también acepte RTP/AVP plain. Es decir, sigue funcionando para
+#     Linphone Desktop sobre UDP/5060.
+#
+# Resultado: el mismo endpoint atiende WSS del browser, UDP de Linphone móvil
+# y TLS si se conecta un cliente SIP-TLS — todo desde el From-user `1001`.
+# Idempotente: sólo aplica si el template todavía no incluye `webrtc`.
+
+PJSIP_CONF="/etc/asterisk/pjsip.conf"
+
+# ---------- Parche aor-common → max_contacts=1 ----------
+#
+# El template `[aor-common]` permite hasta 5 contacts simultáneos por AOR. En
+# uso normal eso es útil (móvil + desktop + softphone), pero en nuestro lab
+# provoca el siguiente bug:
+#   - El browser del agente se cierra sin desregistrarse limpio.
+#   - El contact queda en PJSIP astdb hasta que el qualify falla (≥60s).
+#   - El agente vuelve a abrir el browser → nuevo contact con URI distinto.
+#   - El AOR ahora tiene 2 contacts, ambos "Avail" momentáneamente.
+#   - Cuando otro agente marca a este, MikoPBX hace INVITE al PRIMER contact
+#     (el viejo, browser ya cerrado) y la llamada se queda en ringing.
+#
+# Con max_contacts=1, Asterisk reemplaza el contact viejo en cada REGISTER
+# nuevo del mismo AOR, lo que en nuestro caso es la semántica correcta.
+
+if run grep -q '^max_contacts = 5$' "${PJSIP_CONF}"; then
+  log "Parchando ${PJSIP_CONF} (aor-common: max_contacts 5 → 1)"
+  run sed -i "s/^max_contacts = 5$/max_contacts = 1/" "${PJSIP_CONF}"
+  log "Recargando PJSIP en Asterisk"
+  run asterisk -rx 'module reload res_pjsip.so' >/dev/null || true
+  log "aor-common.max_contacts parchado."
+else
+  log "aor-common.max_contacts ya parchado. Nada que hacer."
+fi
+
+if run grep -q '^\[endpoint-auto\](endpoint-base,!)$' "${PJSIP_CONF}"; then
+  HAS_WEBRTC=$(run sh -c "awk '/^\[endpoint-auto\]/{flag=1;next} /^\[/{flag=0} flag && /^webrtc *= *yes/' ${PJSIP_CONF}" || true)
+  if [ -z "${HAS_WEBRTC}" ]; then
+    log "Parchando ${PJSIP_CONF} (endpoint-auto: webrtc=yes + ambidextro)"
+    # Limpio cualquier transport= que mi versión previa pudo haber dejado.
+    run sed -i "/^\[endpoint-auto\](endpoint-base,!)$/,/^\[/{/^transport *= *transport-udp$/d}" "${PJSIP_CONF}"
+    # Inserto webrtc=yes justo después de la línea del template.
+    run sed -i "/^\[endpoint-auto\](endpoint-base,!)$/a webrtc = yes" "${PJSIP_CONF}"
+    log "Recargando PJSIP en Asterisk"
+    run asterisk -rx 'module reload res_pjsip.so' >/dev/null || true
+    log "endpoint-auto parchado (webrtc=yes) y PJSIP recargado."
+  else
+    log "endpoint-auto ya tiene webrtc=yes. Nada que hacer."
+  fi
+else
+  log "Template endpoint-auto no encontrado en ${PJSIP_CONF}. Saltando."
+fi
+
 log "Bootstrap completado."

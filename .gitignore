@@ -94,3 +94,7 @@ todo.md
 SCRATCH.md
 scratch/
 *.local.md
+
+# debug outputs (Playwright screenshots, SIP frames)
+debug-out/
+

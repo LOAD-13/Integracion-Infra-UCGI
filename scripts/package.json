@@ -1,0 +1,13 @@
+{
+  "name": "ucgi-scripts",
+  "version": "1.0.0",
+  "description": "Scripts utilitarios del lab UCGI — debug-crm-call (Playwright), smoke tests REST.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "debug:call": "node debug-crm-call.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.61.0"
+  }
+}
