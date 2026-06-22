@@ -1,33 +1,25 @@
 {
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "uid": "ucgi-overview",
   "title": "UCGI Overview",
-  "tags": ["ucgi", "voip"],
+  "tags": ["ucgi", "voip", "overview"],
   "timezone": "browser",
-  "refresh": "15s",
+  "refresh": "10s",
   "time": { "from": "now-30m", "to": "now" },
   "panels": [
     {
       "id": 1,
       "type": "stat",
       "title": "Integration API",
-      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "gridPos": { "h": 4, "w": 3, "x": 0, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
-      "targets": [{
-        "expr": "up{job=\"integration-api\"}",
-        "refId": "A"
-      }],
+      "targets": [{ "expr": "up{job=\"integration-api\"}", "refId": "A" }],
       "fieldConfig": {
         "defaults": {
-          "mappings": [
-            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
-          ],
+          "mappings": [{ "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }],
           "color": { "mode": "thresholds" },
-          "thresholds": { "mode": "absolute", "steps": [
-            { "color": "red", "value": null },
-            { "color": "green", "value": 1 }
-          ] }
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
         }
       },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
@@ -36,19 +28,14 @@
       "id": 2,
       "type": "stat",
       "title": "Shaper",
-      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "gridPos": { "h": 4, "w": 3, "x": 3, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
       "targets": [{ "expr": "up{job=\"shaper\"}", "refId": "A" }],
       "fieldConfig": {
         "defaults": {
-          "mappings": [
-            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
-          ],
+          "mappings": [{ "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }],
           "color": { "mode": "thresholds" },
-          "thresholds": { "mode": "absolute", "steps": [
-            { "color": "red", "value": null },
-            { "color": "green", "value": 1 }
-          ] }
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
         }
       },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
@@ -56,28 +43,21 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "Tier de códec",
+      "title": "Tier de codec",
       "description": "3=FULL (opus+vp8) · 2=MIXED (opus audio) · 1=DOWNGRADED (g729) · 0=EMERGENCY",
-      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "gridPos": { "h": 4, "w": 4, "x": 6, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
       "targets": [{ "expr": "ucgi_shaper_tier", "refId": "A" }],
       "fieldConfig": {
         "defaults": {
-          "mappings": [
-            { "type": "value", "options": {
+          "mappings": [{ "type": "value", "options": {
               "0": { "text": "EMERGENCY", "color": "red" },
               "1": { "text": "DOWNGRADED", "color": "orange" },
               "2": { "text": "MIXED", "color": "yellow" },
               "3": { "text": "FULL", "color": "green" }
-            } }
-          ],
+          } }],
           "color": { "mode": "thresholds" },
-          "thresholds": { "mode": "absolute", "steps": [
-            { "color": "red", "value": null },
-            { "color": "orange", "value": 1 },
-            { "color": "yellow", "value": 2 },
-            { "color": "green", "value": 3 }
-          ] }
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": 1 }, { "color": "yellow", "value": 2 }, { "color": "green", "value": 3 }] }
         }
       },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
@@ -85,16 +65,12 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "Ancho de banda (Mbps)",
-      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "title": "Ancho de banda",
+      "gridPos": { "h": 4, "w": 3, "x": 10, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
       "targets": [{ "expr": "ucgi_shaper_bandwidth_mbps", "refId": "A" }],
       "fieldConfig": {
-        "defaults": { "unit": "Mbits", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [
-          { "color": "red", "value": null },
-          { "color": "orange", "value": 5 },
-          { "color": "green", "value": 30 }
-        ] } }
+        "defaults": { "unit": "Mbits", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": 5 }, { "color": "green", "value": 30 }] } }
       },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
@@ -102,70 +78,164 @@
       "id": 5,
       "type": "stat",
       "title": "Llamadas activas",
-      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "gridPos": { "h": 4, "w": 3, "x": 13, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
       "targets": [{ "expr": "ucgi_shaper_active_calls", "refId": "A" }],
       "fieldConfig": { "defaults": { "unit": "short" } },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value" }
     },
     {
       "id": 6,
       "type": "stat",
-      "title": "JVM heap usado",
+      "title": "Req/s 5m",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
+      "targets": [{ "expr": "sum(rate(http_server_requests_seconds_count{job=\"integration-api\"}[5m]))", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "reqps", "decimals": 2 } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value" }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Error rate 5m",
       "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
-      "targets": [{
-        "expr": "sum(jvm_memory_used_bytes{job=\"integration-api\",area=\"heap\"}) / 1024 / 1024",
-        "refId": "A"
-      }],
-      "fieldConfig": { "defaults": { "unit": "decmbytes" } },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+      "targets": [{ "expr": "sum(rate(http_server_requests_seconds_count{job=\"integration-api\",status=~\"5..\"}[5m])) / clamp_min(sum(rate(http_server_requests_seconds_count{job=\"integration-api\"}[5m])), 0.001)", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 2, "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 0.01 }, { "color": "red", "value": 0.05 }] } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
       "id": 10,
       "type": "timeseries",
-      "title": "HTTP requests/sec (integration-api)",
+      "title": "HTTP requests/sec por endpoint",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
       "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
-      "targets": [{
-        "expr": "sum by (uri) (rate(http_server_requests_seconds_count{job=\"integration-api\"}[1m]))",
-        "legendFormat": "{{uri}}",
-        "refId": "A"
-      }],
-      "fieldConfig": { "defaults": { "unit": "reqps" } }
+      "targets": [{ "expr": "sum by (uri) (rate(http_server_requests_seconds_count{job=\"integration-api\"}[1m]))", "legendFormat": "{{uri}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "reqps" } },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] } }
     },
     {
       "id": 11,
       "type": "timeseries",
-      "title": "Latency p95 (integration-api)",
+      "title": "Latency p50/p95/p99 (integration-api)",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
       "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
-      "targets": [{
-        "expr": "histogram_quantile(0.95, sum by (le, uri) (rate(http_server_requests_seconds_bucket{job=\"integration-api\"}[5m])))",
-        "legendFormat": "p95 {{uri}}",
-        "refId": "A"
-      }],
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"integration-api\"}[5m])))", "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"integration-api\"}[5m])))", "legendFormat": "p95", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"integration-api\"}[5m])))", "legendFormat": "p99", "refId": "C" }
+      ],
       "fieldConfig": { "defaults": { "unit": "s" } }
     },
     {
       "id": 20,
       "type": "timeseries",
-      "title": "Shaper · BW Mbps vs tier",
+      "title": "Shaper: BW Mbps vs Llamadas activas",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
       "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
       "targets": [
         { "expr": "ucgi_shaper_bandwidth_mbps", "legendFormat": "BW Mbps", "refId": "A" },
-        { "expr": "ucgi_shaper_tier", "legendFormat": "tier", "refId": "B" }
+        { "expr": "ucgi_shaper_active_calls", "legendFormat": "Llamadas activas", "refId": "B" }
       ]
     },
     {
       "id": 21,
       "type": "timeseries",
-      "title": "Required kbps (próxima llamada)",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "title": "Shaper: Tier en el tiempo",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
+      "targets": [{ "expr": "ucgi_shaper_tier", "legendFormat": "tier", "refId": "A" }],
+      "fieldConfig": { "defaults": { "min": 0, "max": 3, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": 1 }, { "color": "yellow", "value": 2 }, { "color": "green", "value": 3 }] } } }
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "Required kbps proxima llamada",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 12 },
       "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
       "targets": [{ "expr": "ucgi_shaper_required_kbps", "legendFormat": "kbps", "refId": "A" }],
       "fieldConfig": { "defaults": { "unit": "Kbits" } }
+    },
+    {
+      "id": 30,
+      "type": "timeseries",
+      "title": "JVM Heap (integration-api)",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
+      "targets": [
+        { "expr": "sum(jvm_memory_used_bytes{job=\"integration-api\",area=\"heap\"})", "legendFormat": "heap used", "refId": "A" },
+        { "expr": "sum(jvm_memory_committed_bytes{job=\"integration-api\",area=\"heap\"})", "legendFormat": "heap committed", "refId": "B" },
+        { "expr": "sum(jvm_memory_max_bytes{job=\"integration-api\",area=\"heap\"})", "legendFormat": "heap max", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" } }
+    },
+    {
+      "id": 31,
+      "type": "timeseries",
+      "title": "GC pause (integration-api)",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
+      "targets": [{ "expr": "rate(jvm_gc_pause_seconds_sum{job=\"integration-api\"}[1m])", "legendFormat": "GC pause/s", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 32,
+      "type": "timeseries",
+      "title": "Threads en uso",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
+      "targets": [
+        { "expr": "jvm_threads_live_threads{job=\"integration-api\"}", "legendFormat": "live", "refId": "A" },
+        { "expr": "jvm_threads_daemon_threads{job=\"integration-api\"}", "legendFormat": "daemon", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 40,
+      "type": "timeseries",
+      "title": "Hikari: Conexiones DB",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
+      "targets": [
+        { "expr": "hikaricp_connections_active{job=\"integration-api\"}", "legendFormat": "active", "refId": "A" },
+        { "expr": "hikaricp_connections_idle{job=\"integration-api\"}", "legendFormat": "idle", "refId": "B" },
+        { "expr": "hikaricp_connections_pending{job=\"integration-api\"}", "legendFormat": "pending", "refId": "C" }
+      ]
+    },
+    {
+      "id": 41,
+      "type": "timeseries",
+      "title": "Hikari: Latencia adquisicion + uso",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
+      "targets": [
+        { "expr": "rate(hikaricp_connections_acquire_seconds_sum{job=\"integration-api\"}[5m]) / clamp_min(rate(hikaricp_connections_acquire_seconds_count{job=\"integration-api\"}[5m]), 1)", "legendFormat": "acquire avg", "refId": "A" },
+        { "expr": "rate(hikaricp_connections_usage_seconds_sum{job=\"integration-api\"}[5m]) / clamp_min(rate(hikaricp_connections_usage_seconds_count{job=\"integration-api\"}[5m]), 1)", "legendFormat": "usage avg", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 50,
+      "type": "timeseries",
+      "title": "Prometheus scrape duration",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 },
+      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
+      "targets": [{ "expr": "scrape_duration_seconds", "legendFormat": "{{job}}@{{instance}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 51,
+      "type": "table",
+      "title": "Estado de targets",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 36 },
+      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
+      "targets": [{ "expr": "up", "refId": "A", "format": "table", "instant": true }],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "left", "displayMode": "color-background" },
+          "mappings": [{ "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }]
+        }
+      }
     }
   ]
 }
