@@ -121,6 +121,24 @@ class MikoPbxRestClientTest {
     }
 
     @Test
+    void listExtensionNumbers_returnsAllNumbersFromData(WireMockRuntimeInfo wm) {
+        stubLogin();
+        com.github.tomakehurst.wiremock.client.WireMock.stubFor(
+                get(urlEqualTo("/pbxcore/api/v3/extensions"))
+                        .willReturn(aResponse().withStatus(200)
+                                .withHeader("Content-Type", "application/json")
+                                .withBody("{\"result\":true,\"data\":["
+                                        + "{\"id\":\"1\",\"number\":\"1001\",\"type\":\"SIP\"},"
+                                        + "{\"id\":\"2\",\"number\":\"1002\",\"type\":\"SIP\"},"
+                                        + "{\"id\":\"3\",\"number\":\"201\",\"type\":\"SIP\"}]}")));
+
+        MikoPbxRestClient client = newClient(wm);
+        var nums = client.listExtensionNumbers();
+
+        assertThat(nums).containsExactlyInAnyOrder("1001", "1002", "201");
+    }
+
+    @Test
     void ping_returnsTrue_whenSystemPingPongsBack(WireMockRuntimeInfo wm) {
         com.github.tomakehurst.wiremock.client.WireMock.stubFor(
                 get(urlEqualTo("/pbxcore/api/system/ping"))
