@@ -1,0 +1,28 @@
+# prometheus.yml — configuración mínima viable para la demo del Sprint 3.
+# Scraping de los endpoints /actuator/prometheus que ya están expuestos por
+# integration-api (HU-03.1) y de Prometheus mismo. La versión completa con
+# rules, alertas y SLI/SLO entra en HU-08.2 (Sprint 4).
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 30s
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: integration-api
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["integration-api:8081"]
+
+  - job_name: shaper
+    # /metrics expone los gauges en formato Prometheus (HU-08.5 versión mínima).
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ["shaper:9100"]

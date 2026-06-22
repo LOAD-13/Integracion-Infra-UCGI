@@ -7,6 +7,7 @@ import org.asteriskjava.manager.action.CommandAction;
 import org.asteriskjava.manager.response.ManagerResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -22,6 +23,7 @@ public class AsteriskAmiClient {
     private final AsteriskProperties properties;
     private final ConnectionFactory connectionFactory;
 
+    @Autowired
     public AsteriskAmiClient(AsteriskProperties properties) {
         this(properties, AsteriskAmiClient::defaultFactory);
     }

@@ -1,0 +1,16 @@
+# Provider de dashboards para Grafana. Lee los JSON desde /var/lib/grafana/dashboards
+# (que viene bind-mounted desde infra/grafana/dashboards/ en el host).
+apiVersion: 1
+
+providers:
+  - name: UCGI
+    orgId: 1
+    folder: UCGI
+    type: file
+    disableDeletion: false
+    editable: true
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

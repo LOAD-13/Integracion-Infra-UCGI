@@ -1,0 +1,12 @@
+# alerts.yml — reglas de alerta mínimas para evitar `--config.file` vacío.
+# Las reglas reales (latencia, error rate, BW saturado) entran en HU-08.2.
+groups:
+  - name: ucgi-placeholder
+    rules:
+      - alert: PrometheusSelfDown
+        expr: up{job="prometheus"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus no responde a sí mismo (placeholder HU-08.2)"

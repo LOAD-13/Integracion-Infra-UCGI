@@ -95,6 +95,14 @@ services:
   mikopbx:
     image: mikopbx/mikopbx:2026.2.118
     container_name: ucgi-mikopbx
+    # hostname fija el dominio SIP que MikoPBX usa en los headers From de los
+    # mensajes que origina (OPTIONS de qualify, INVITE de transferencias). Por
+    # default Docker asigna un hash random (ej: 227216678a3e) que sip.js no
+    # puede parsear como dominio SIP válido — descarta todos los mensajes
+    # entrantes y el softphone WebRTC se cuelga al instante de marcar.
+    # Con `mikopbx.local` el From queda con un FQDN válido (cumple RFC 3261
+    # §19.1.1) y sip.js lo acepta. Ver docs/notas-tecnicas/2026-06-20-bugs-demo-prep.md §4.
+    hostname: mikopbx.local
     restart: unless-stopped
     environment:
       WEBHTTPPORT: 80
@@ -121,6 +129,29 @@ services:
       timeout: 10s
       retries: 5
       start_period: 120s
+
+  # ===== MikoPBX bootstrap (sidecar one-shot) =====
+  # Aplica los parches que MikoPBX no soporta nativamente:
+  #   - Reescribe extensions.conf para que el dialplan no descarte endpoints
+  #     en estado Unreachable (PJSIP_DIAL_CONTACTS → PJSIP/<EXTEN>).
+  #   - Recarga el dialplan en Asterisk.
+  # Idempotente (detecta si el patrón viejo está presente antes de seded).
+  # Corre una sola vez por `up`; sale con exit 0 y no se reinicia.
+  # Requiere socket Docker para ejecutar `docker exec` contra ucgi-mikopbx.
+  mikopbx-bootstrap:
+    image: docker:27-cli
+    container_name: ucgi-mikopbx-bootstrap
+    restart: "no"
+    depends_on:
+      mikopbx:
+        condition: service_healthy
+    # Sin red — solo necesita el socket Unix de Docker. Evita que compose cree
+    # una `default` adicional.
+    network_mode: "none"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./infra/mikopbx/bootstrap.sh:/bootstrap.sh:ro
+    entrypoint: ["/bin/sh", "/bootstrap.sh"]
 
   # ===== Microservicio de integración (Spring Boot) =====
   integration-api:
@@ -157,7 +188,9 @@ services:
       midpoint:
         condition: service_started
       mikopbx:
-        condition: service_started
+        condition: service_healthy
+      mikopbx-bootstrap:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8081/actuator/health"]
       interval: 15s

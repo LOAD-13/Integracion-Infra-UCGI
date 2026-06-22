@@ -321,7 +321,7 @@ Cada Épica, HU y Subtask incluye en su descripción:
 - **Criterios de aceptación**
 - **DoD (Definition of Done)** — checklist explícita que debe validarse antes de cerrar.
 
-> **Estado JIRA al 2026-06-19 (cierre de sesión):** EP-01, EP-02 cerrados al 100%. EP-03 al 86% (6/7 HUs útiles; HU-03.7 bloqueada por shaper de S4). EP-04 y EP-05 sin arrancar todavía. EP-06/07/08/09 son S4-S5. Total de issues: 171 (último IUDCYGI-171). Las HUs `(NUEVA)` marcadas abajo se incorporaron en sesiones de planificación posteriores al backlog inicial.
+> **Estado JIRA al 2026-06-20 (cierre Sprint 3 al 100%):** EP-01, EP-02, EP-03, EP-04 y EP-05 cerrados al 100% — incluido HU-03.7 en versión mínima viable (la versión completa con tc real + reescritura MikoPBX se posterga a S4 con deuda explícita en `docs/notas-tecnicas/2026-06-19-hu-03.7-deuda.md`). Adicionalmente HU-08.5 y HU-07.8 se adelantaron en versión mínima como soporte de HU-03.7. EP-06/07/08/09 son S4-S5. Total issues: 171 (último IUDCYGI-171). **Demo viable**: login agente vía `https://localhost` → softphone WebRTC → CRUD + CDR + notas + métricas (extensiones SIP en MikoPBX se crean manualmente desde la GUI por un bug del cliente Java — deuda S4). Las HUs `(NUEVA)` marcadas abajo se incorporaron en sesiones de planificación posteriores al backlog inicial.
 
 ### 7.1 Mapa de Épicas
 

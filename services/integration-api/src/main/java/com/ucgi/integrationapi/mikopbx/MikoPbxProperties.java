@@ -30,7 +30,13 @@ public record MikoPbxProperties(String host, int port, String adminUser, String 
     }
 
     public String baseUrl() {
-        return "http://" + host + ":" + port;
+        // MikoPBX (Alpine + nginx) redirige 301 todo HTTP→HTTPS. El POST
+        // /auth:login pierde el body en el redirect, así que apuntamos directo
+        // a https:// (puerto 443 dentro de la red docker). El SSLContext inseguro
+        // del MikoPbxRestClient acepta el cert autofirmado.
+        String scheme = (port == 443 || port == 80) ? "https" : "http";
+        int effectivePort = (port == 80) ? 443 : port;
+        return scheme + "://" + host + ":" + effectivePort;
     }
 
     public record Retry(int maxAttempts, long initialBackoffMs, double backoffMultiplier) {

@@ -12,11 +12,11 @@ USE crm;
 -- ----------------------------------------------------------------------------
 INSERT INTO users (username, email, full_name, password_hash, role, active) VALUES
   ('admin',    'admin@ucgi.local',    'Administrador UCGI',
-   '$2a$10$wH9q1m1c3v8Q3aZk0Cf0X.r2c2b8s4K9o9V7w0K2Z1B6gJ5h9pCwS', 'ADMIN',  TRUE),
+   '$2b$10$0orMRg7OLziDYLW9kzLHXeXgEWOnrVpeYrhrbvRFtZUVeeeLX6e.e', 'ADMIN',  TRUE),
   ('agente1',  'agente1@ucgi.local',  'Agente Uno',
-   '$2a$10$wH9q1m1c3v8Q3aZk0Cf0X.r2c2b8s4K9o9V7w0K2Z1B6gJ5h9pCwS', 'AGENTE', TRUE),
+   '$2b$10$0orMRg7OLziDYLW9kzLHXeXgEWOnrVpeYrhrbvRFtZUVeeeLX6e.e', 'AGENTE', TRUE),
   ('agente2',  'agente2@ucgi.local',  'Agente Dos',
-   '$2a$10$wH9q1m1c3v8Q3aZk0Cf0X.r2c2b8s4K9o9V7w0K2Z1B6gJ5h9pCwS', 'AGENTE', TRUE);
+   '$2b$10$0orMRg7OLziDYLW9kzLHXeXgEWOnrVpeYrhrbvRFtZUVeeeLX6e.e', 'AGENTE', TRUE);
 
 -- ----------------------------------------------------------------------------
 -- Extensiones SIP para los 2 agentes (los provisionara midPoint en S3, esto

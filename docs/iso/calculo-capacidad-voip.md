@@ -140,15 +140,45 @@ python calculator.py
 
 ### 3.3 Integración con `integration-api` — downgrade automático de códec
 
-El `integration-api` consulta periódicamente (cada 10 s) el endpoint `/status` del shaper. Si detecta que el BW configurado es **menor que el umbral** para mantener G.711 a la concurrencia esperada, reescribe `pjsip.conf` cambiando la lista de códecs permitidos a una versión "low-bandwidth":
+El `integration-api` consulta periódicamente (cada 10 s) el endpoint `/status` del shaper. La decisión de tier se toma con la **misma fórmula que la calculadora** (§2), aplicada al BW reportado y la concurrencia activa:
 
-| BW del shaper | Códec preferente en `pjsip.conf` |
-|---------------|----------------------------------|
-| ≥ 30 Mbps | `allow = opus,ulaw,alaw,gsm,g729` (calidad máxima) |
-| 10 – 29 Mbps | `allow = opus,gsm,g729,ulaw,alaw` (mixto) |
-| < 10 Mbps | `allow = g729,gsm,ulaw,alaw` (priorizar eficiencia) |
+```
+usable_bw_kbps = bandwidthMbps * 1000 * (1 - HEADROOM)        # HEADROOM = 0.20
 
-Tras reescribir el archivo, el `integration-api` ejecuta `pjsip reload` vía AMI. **Las llamadas nuevas** se inician con el códec apropiado. **Las llamadas existentes** mantienen su códec original (limitación documentada como evolución futura: re-INVITE en mitad de llamada vía AMI, ver §6).
+decisión(bandwidthMbps, activeCalls):
+  cc = activeCalls + 1                                         # +1 = próxima llamada
+  required_opus = bw_per_call_kbps("opus_24")  * cc            # ≈  94.4 * cc
+  required_g711 = bw_per_call_kbps("g711_alaw") * cc           # ≈ 174.4 * cc
+  required_g729 = bw_per_call_kbps("g729")     * cc            # ≈  62.4 * cc
+
+  if usable_bw_kbps >= required_g711:  return "FULL"           # opus 24 + video
+  if usable_bw_kbps >= required_opus:  return "MIXED"          # opus solo audio
+  if usable_bw_kbps >= required_g729:  return "DOWNGRADED"     # g729 comprimido
+  return "EMERGENCY"                                             # rechazar llamadas nuevas
+```
+
+> El orden de comparación es G.711 → opus → G.729: queremos darle al CRM **el códec más amigable con WebRTC y video** mientras el BW lo permita. Sólo bajamos a G.729 cuando el BW deja de alcanzar incluso para opus a la concurrencia esperada.
+
+| Tier reportado | Códec preferente que el `integration-api` aplica en `pjsip.conf` |
+|----------------|------------------------------------------------------------------|
+| **FULL** | `allow = opus,ulaw,alaw,gsm,g729` + `vp8,h264` (calidad máxima) |
+| **MIXED** | `allow = opus,gsm,g729,ulaw,alaw` (audio solamente) |
+| **DOWNGRADED** | `allow = g729,gsm,ulaw,alaw` (priorizar eficiencia) |
+| **EMERGENCY** | `allow = g729,gsm` y rechazo de llamadas nuevas con `503` |
+
+Tras reescribir el archivo, el `integration-api` ejecuta `pjsip reload` vía AMI (o lanza el equivalente REST en MikoPBX). **Las llamadas nuevas** se inician con el códec apropiado. **Las llamadas existentes** mantienen su códec original (limitación documentada como evolución futura: re-INVITE en mitad de llamada vía AMI, ver §6).
+
+### 3.4 Coherencia entre la calculadora, el shaper y el integration-api
+
+La fórmula es **idéntica en los tres componentes**: mismos `frame_bytes` por códec, mismo overhead `58 B`, mismo `pps = 50`, misma `HEADROOM = 0.20`. Esto evita la trampa clásica de tener una hoja de cálculo Excel diciendo "X" y el sistema reaccionando con "Y". Verificación:
+
+| Componente | Archivo | Función con la fórmula |
+|------------|---------|------------------------|
+| Calculadora Tkinter | `tools/voip-bw-calculator/bw_calc.py` | `bw_per_call_kbps(codec)` |
+| Shaper Flask runtime | `infra/shaper/app.py` | `bw_per_call_kbps(codec)` + `_decide_tier(...)` |
+| Integration-api | `services/integration-api/.../shaper/ShaperPollingService.java` | `decideTier(status)` lee `policy` del shaper |
+
+El shaper expone el tier ya calculado en `/status.policy` para evitar re-implementar la fórmula en Java. El integration-api solo necesita consumir ese campo.
 
 ---
 
