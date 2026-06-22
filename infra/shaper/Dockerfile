@@ -12,7 +12,7 @@
 FROM python:3.12-alpine
 
 RUN apk add --no-cache iproute2 curl
-RUN pip install --no-cache-dir flask==3.0.3
+RUN pip install --no-cache-dir flask==3.0.3 requests==2.32.3
 
 WORKDIR /app
 COPY app.py /app/app.py

@@ -1,49 +1,50 @@
 #!/usr/bin/env python3
 """
-ucgi-shaper · stub Flask para HU-08.5 (versión mínima) + HU-03.7.
+ucgi-shaper · servicio de capacidad VoIP del lab.
 
-Expone:
+Endpoints:
   - GET /status   → estado de la red + política de códec sugerida.
   - GET /healthz  → "ok".
-  - GET /metrics  → métricas en formato Prometheus para HU-08.1.
-  - POST /admin/bandwidth → cambia el BW reportado.
+  - GET /metrics  → métricas en formato Prometheus para Grafana.
+  - POST /admin/bandwidth → override del BW reportado (modo demo).
                             Body: {"mbps": <int>}
-  - POST /admin/active-calls → cambia el número de llamadas activas reportadas.
+  - POST /admin/active-calls → override del número de llamadas activas (modo demo).
                                Body: {"calls": <int>}
 
-Fórmula de capacidad (idéntica a tools/voip-bw-calculator, ver
-docs/iso/calculo-capacidad-voip.md):
+Fórmula (idéntica a tools/voip-bw-calculator, ver docs/iso/calculo-capacidad-voip.md):
 
-  bw_per_call(codec) = (frame_bytes(codec) + 58 bytes overhead) * 8 * 50 pps * 2
-                      / 1000  → kbps bidireccional
+  bw_per_call(codec) = (frame_bytes(codec) + 58 bytes overhead) * 8 * 50 pps * 2 / 1000  → kbps bidireccional
+  required_bw(codec, cc) = bw_per_call(codec) * cc
+  usable_bw(bw_mbps) = bw_mbps * 1000 * (1 - HEADROOM)
 
-  required_bw(codec, cc) = bw_per_call(codec) * cc          # kbps
+Decisión de tier (más BW → más calidad):
+  if usable_bw >= 460 * cc:                FULL        (opus_24 + vp8)
+  elif usable_bw >= bw_per_call(opus) * cc: MIXED       (opus_24)
+  elif usable_bw >= bw_per_call(g729) * cc: DOWNGRADED  (g729)
+  else:                                     EMERGENCY  (rechazar)
 
-  usable_bw(bw_mbps)     = bw_mbps * 1000 * (1 - HEADROOM)  # kbps con holgura
-
-Decisión de tier:
-  if usable_bw >= required_bw(OPUS, cc+1):     FULL
-  elif usable_bw >= required_bw(G711, cc+1):   MIXED
-  elif usable_bw >= required_bw(G729, cc+1):   DOWNGRADED
-  else:                                        EMERGENCY
-
-DEUDA HU-08.5 versión completa (Sprint 4): este stub se reemplaza por uno que
-use `tc qdisc tbf` para fijar BW real en la interfaz y leer estadísticas reales
-de /sys/class/net/.../statistics/. Hasta entonces los valores son lo que el
-operador setea por /admin/*.
+Fuente de las métricas en tiempo real:
+  - bandwidthMbps: por default lee la capacidad de la interfaz docker del shaper
+    (/sys/class/net/eth0/speed → o un valor estático si no es disponible). Se puede
+    override con env `UCGI_SHAPER_BANDWIDTH_MBPS`.
+  - activeCalls: consulta MikoPBX REST `GET /pbxcore/api/v3/pbx/getActiveChannels`
+    cada 5s. Devuelve el conteo de canales PJSIP en estado UP. Si falla, conserva el
+    último valor conocido.
 """
+import logging
 import os
+import threading
+import time
+from typing import Optional
 
+import requests
 from flask import Flask, Response, jsonify, request
-
-app = Flask(__name__)
 
 # ---------- Configuración de la fórmula ----------
 HEADROOM = float(os.environ.get("UCGI_SHAPER_HEADROOM", "0.20"))   # 20%
 PACKETS_PER_SECOND = 50                                              # ptime=20ms en MikoPBX
+OVERHEAD_BYTES_PER_PACKET = 58  # 12 RTP + 8 UDP + 20 IPv4 + 18 Ethernet
 
-# Tamaño del payload (bytes) por frame de cada códec, sin overhead.
-# Coincide 1:1 con tools/voip-bw-calculator/codec_data.py.
 CODEC_FRAME_BYTES = {
     "opus_24":   60,
     "g711_alaw": 160,
@@ -51,31 +52,29 @@ CODEC_FRAME_BYTES = {
     "gsm":       33,
     "g729":      20,
 }
-OVERHEAD_BYTES_PER_PACKET = 58  # 12 RTP + 8 UDP + 20 IPv4 + 18 Ethernet
+FULL_KBPS_PER_CALL = 460.0   # opus + vp8 estimado
+
+# ---------- Configuración de la fuente real ----------
+# MikoPBX REST API: lee llamadas activas vía /pbxcore/api/v3/pbx/getActiveCalls.
+MIKOPBX_HOST = os.environ.get("UCGI_SHAPER_MIKOPBX_HOST", "mikopbx")
+MIKOPBX_PORT = int(os.environ.get("UCGI_SHAPER_MIKOPBX_PORT", "443"))
+MIKOPBX_LOGIN = os.environ.get("UCGI_SHAPER_MIKOPBX_LOGIN", "admin")
+MIKOPBX_PASSWORD = os.environ.get("UCGI_SHAPER_MIKOPBX_PASSWORD", "Deathnote2005")
+MIKOPBX_BASE = f"https://{MIKOPBX_HOST}:{MIKOPBX_PORT}"
+
+POLL_INTERVAL_S = int(os.environ.get("UCGI_SHAPER_POLL_INTERVAL_S", "5"))
+
+# BW reportado por default — si no se pasa override, tomamos el del NIC docker.
+DEFAULT_BANDWIDTH_MBPS = int(os.environ.get("UCGI_SHAPER_BANDWIDTH_MBPS", "0"))
 
 
 def bw_per_call_kbps(codec: str) -> float:
-    """BW bidireccional de una llamada con el códec dado, en kbps."""
     payload = CODEC_FRAME_BYTES[codec]
     bytes_per_packet = payload + OVERHEAD_BYTES_PER_PACKET
     return (bytes_per_packet * 8 * PACKETS_PER_SECOND * 2) / 1000.0
 
 
-# Estimaciones de BW por llamada para cada modo, en kbps bidireccionales.
-#   FULL       → opus@24 audio + video VP8 ~360 kbps = ~454 kbps total por llamada.
-#                Asumimos 460 para tener margen.
-#   MIXED      → opus@24 audio solamente = bw_per_call_kbps('opus_24') ≈ 94 kbps.
-#   DOWNGRADED → g729 audio comprimido    = bw_per_call_kbps('g729')   ≈ 62 kbps.
-FULL_KBPS_PER_CALL = 460.0
-
-
 def _decide_tier(bw_mbps: int, active_calls: int) -> dict:
-    """Decide el tier de calidad considerando la siguiente llamada (cc + 1).
-
-    Orden: más BW disponible → más calidad. Si entra video, FULL; si solo audio
-    de alta calidad, MIXED; si hace falta comprimir, DOWNGRADED; si no alcanza
-    para ningún códec, EMERGENCY (rechazo).
-    """
     usable_kbps = bw_mbps * 1000 * (1 - HEADROOM)
     cc = active_calls + 1
     opus_required = bw_per_call_kbps("opus_24") * cc
@@ -101,11 +100,169 @@ def _decide_tier(bw_mbps: int, active_calls: int) -> dict:
     }
 
 
+def _nic_speed_mbps(nic: str = "eth0") -> Optional[int]:
+    """Lee la velocidad reportada por la NIC docker desde sysfs."""
+    try:
+        with open(f"/sys/class/net/{nic}/speed", "r", encoding="utf-8") as fp:
+            value = fp.read().strip()
+        v = int(value)
+        return v if v > 0 else None
+    except (OSError, ValueError):
+        return None
+
+
+def _initial_bandwidth_mbps() -> int:
+    """BW inicial: env override → NIC speed → fallback 100 Mbps."""
+    if DEFAULT_BANDWIDTH_MBPS > 0:
+        return DEFAULT_BANDWIDTH_MBPS
+    nic_value = _nic_speed_mbps()
+    return nic_value if nic_value is not None else 100
+
+
+app = Flask(__name__)
+log = logging.getLogger("ucgi-shaper")
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s [%(levelname)s] %(message)s")
+
+
 _state = {
-    "bandwidthMbps": int(os.environ.get("MOCK_BANDWIDTH_MBPS", "50")),
-    "qdiscActive":   os.environ.get("MOCK_QDISC_ACTIVE", "false").lower() == "true",
-    "activeCalls":   int(os.environ.get("MOCK_ACTIVE_CALLS", "0")),
+    "bandwidthMbps":   _initial_bandwidth_mbps(),
+    "activeCalls":     0,
+    "lastSourceError": None,
+    "lastSourceAt":    None,
+    # Tráfico instantáneo, calculado a partir de delta de rx_bytes/tx_bytes.
+    "trafficRxMbps":   0.0,
+    "trafficTxMbps":   0.0,
+    "trafficTotalMbps": 0.0,
 }
+
+
+# ---------- Lector de tráfico real desde /sys/class/net/eth0/statistics ----------
+class TrafficSampler:
+    """Lee rx_bytes/tx_bytes del NIC y calcula Mbps por intervalo.
+
+    Esto sí fluctúa con tráfico real (incluye RTP de las llamadas). Es lo que
+    el panel "Ancho de banda" del dashboard mostrará como pico cuando haya
+    llamadas activas — el `bandwidthMbps` original (capacidad NIC) seguirá
+    fijo en lo que reporta el NIC docker.
+    """
+
+    def __init__(self, nic: str = "eth0", interval_s: float = 2.0):
+        self.nic = nic
+        self.interval_s = interval_s
+        self.last_rx = 0
+        self.last_tx = 0
+        self.last_ts: Optional[float] = None
+
+    def _read(self, key: str) -> int:
+        try:
+            with open(f"/sys/class/net/{self.nic}/statistics/{key}", "r",
+                      encoding="utf-8") as fp:
+                return int(fp.read().strip())
+        except (OSError, ValueError):
+            return 0
+
+    def loop(self):
+        while True:
+            rx = self._read("rx_bytes")
+            tx = self._read("tx_bytes")
+            now = time.time()
+            if self.last_ts is not None and now > self.last_ts:
+                dt = now - self.last_ts
+                rx_mbps = max(0.0, (rx - self.last_rx) * 8.0 / 1_000_000.0 / dt)
+                tx_mbps = max(0.0, (tx - self.last_tx) * 8.0 / 1_000_000.0 / dt)
+                _state["trafficRxMbps"]    = round(rx_mbps, 3)
+                _state["trafficTxMbps"]    = round(tx_mbps, 3)
+                _state["trafficTotalMbps"] = round(rx_mbps + tx_mbps, 3)
+            self.last_rx = rx
+            self.last_tx = tx
+            self.last_ts = now
+            time.sleep(self.interval_s)
+
+
+def _start_traffic_sampler():
+    sampler = TrafficSampler()
+    thread = threading.Thread(target=sampler.loop, daemon=True,
+                              name="traffic-sampler")
+    thread.start()
+    log.info("Traffic sampler iniciado en eth0 cada %.1fs", sampler.interval_s)
+
+
+# ---------- Worker poller a MikoPBX ----------
+class MikoPbxPoller:
+    """Worker que consulta MikoPBX cada `POLL_INTERVAL_S` y actualiza activeCalls."""
+
+    def __init__(self):
+        self.session = requests.Session()
+        self.session.verify = False  # cert autofirmado del lab
+        requests.packages.urllib3.disable_warnings()  # type: ignore[attr-defined]
+        self.token: Optional[str] = None
+        self.token_expires_at = 0.0
+
+    def get_token(self) -> Optional[str]:
+        if self.token and time.time() < self.token_expires_at - 30:
+            return self.token
+        try:
+            resp = self.session.post(
+                f"{MIKOPBX_BASE}/pbxcore/api/v3/auth:login",
+                json={"login": MIKOPBX_LOGIN, "password": MIKOPBX_PASSWORD},
+                timeout=3.0,
+            )
+            data = resp.json().get("data", {})
+            token = data.get("accessToken")
+            if not token:
+                _state["lastSourceError"] = "auth response sin accessToken"
+                return None
+            self.token = token
+            self.token_expires_at = time.time() + float(data.get("expiresIn", 900))
+            return token
+        except Exception as exc:  # noqa: BLE001
+            _state["lastSourceError"] = f"auth: {exc}"
+            return None
+
+    def query_active_calls(self) -> Optional[int]:
+        token = self.get_token()
+        if not token:
+            return None
+        try:
+            # MikoPBX REST API v3 sigue el Google API Design (recurso:metodo con `:`),
+            # así que el path correcto es /pbxcore/api/v3/pbx-status:getActiveCalls
+            # (NO /pbx/getActiveCalls que devuelve 404).
+            resp = self.session.get(
+                f"{MIKOPBX_BASE}/pbxcore/api/v3/pbx-status:getActiveCalls",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=3.0,
+            )
+            payload = resp.json()
+            if not payload.get("result", False):
+                _state["lastSourceError"] = (
+                    f"getActiveCalls result=false: {payload.get('messages')}"
+                )
+                return None
+            data = payload.get("data", [])
+            # data es una lista de calls (no canales): un elemento = una llamada.
+            if isinstance(data, list):
+                return len(data)
+            return 0
+        except Exception as exc:  # noqa: BLE001
+            _state["lastSourceError"] = f"getActiveCalls: {exc}"
+            return None
+
+    def loop(self):
+        while True:
+            active = self.query_active_calls()
+            if active is not None:
+                _state["activeCalls"] = active
+                _state["lastSourceError"] = None
+                _state["lastSourceAt"] = time.time()
+            time.sleep(POLL_INTERVAL_S)
+
+
+def _start_poller():
+    poller = MikoPbxPoller()
+    thread = threading.Thread(target=poller.loop, daemon=True, name="mikopbx-poller")
+    thread.start()
+    log.info("MikoPBX poller iniciado contra %s cada %ds", MIKOPBX_BASE, POLL_INTERVAL_S)
 
 
 @app.get("/healthz")
@@ -118,8 +275,12 @@ def status():
     decision = _decide_tier(_state["bandwidthMbps"], _state["activeCalls"])
     return jsonify(
         bandwidthMbps=_state["bandwidthMbps"],
-        qdiscActive=_state["qdiscActive"],
         activeCalls=_state["activeCalls"],
+        trafficRxMbps=_state["trafficRxMbps"],
+        trafficTxMbps=_state["trafficTxMbps"],
+        trafficTotalMbps=_state["trafficTotalMbps"],
+        lastSourceError=_state["lastSourceError"],
+        lastSourceAt=_state["lastSourceAt"],
         # Backwards compatible: el integration-api leía `policy` en HU-03.7 mínima.
         policy=decision["tier"],
         **decision,
@@ -154,17 +315,23 @@ def update_active_calls():
 
 @app.get("/metrics")
 def metrics():
-    """Métricas Prometheus para HU-08.1 / dashboards Grafana."""
+    """Métricas Prometheus para Grafana."""
     decision = _decide_tier(_state["bandwidthMbps"], _state["activeCalls"])
     tier_codes = {"FULL": 3, "MIXED": 2, "DOWNGRADED": 1, "EMERGENCY": 0}
     lines = [
-        "# HELP ucgi_shaper_bandwidth_mbps Ancho de banda total reportado (Mbps).",
+        "# HELP ucgi_shaper_bandwidth_mbps Capacidad del NIC (Mbps), no es tráfico actual.",
         "# TYPE ucgi_shaper_bandwidth_mbps gauge",
         f"ucgi_shaper_bandwidth_mbps {_state['bandwidthMbps']}",
-        "# HELP ucgi_shaper_qdisc_active 1 si tc qdisc está aplicado.",
-        "# TYPE ucgi_shaper_qdisc_active gauge",
-        f"ucgi_shaper_qdisc_active {1 if _state['qdiscActive'] else 0}",
-        "# HELP ucgi_shaper_active_calls Llamadas activas reportadas.",
+        "# HELP ucgi_shaper_traffic_rx_mbps Tráfico RX en eth0 ahora (Mbps).",
+        "# TYPE ucgi_shaper_traffic_rx_mbps gauge",
+        f"ucgi_shaper_traffic_rx_mbps {_state['trafficRxMbps']}",
+        "# HELP ucgi_shaper_traffic_tx_mbps Tráfico TX en eth0 ahora (Mbps).",
+        "# TYPE ucgi_shaper_traffic_tx_mbps gauge",
+        f"ucgi_shaper_traffic_tx_mbps {_state['trafficTxMbps']}",
+        "# HELP ucgi_shaper_traffic_total_mbps Suma RX+TX (Mbps).",
+        "# TYPE ucgi_shaper_traffic_total_mbps gauge",
+        f"ucgi_shaper_traffic_total_mbps {_state['trafficTotalMbps']}",
+        "# HELP ucgi_shaper_active_calls Llamadas activas leídas de MikoPBX.",
         "# TYPE ucgi_shaper_active_calls gauge",
         f"ucgi_shaper_active_calls {_state['activeCalls']}",
         "# HELP ucgi_shaper_tier Tier de códec actual (3=FULL,2=MIXED,1=DOWNGRADED,0=EMERGENCY).",
@@ -173,13 +340,19 @@ def metrics():
         "# HELP ucgi_shaper_required_kbps BW requerido para la próxima llamada con el codec elegido.",
         "# TYPE ucgi_shaper_required_kbps gauge",
         f"ucgi_shaper_required_kbps {decision['requiredKbps']}",
-        # Métrica con el nombre del códec como label (Grafana 'Value mappings'
-        # puede mostrar la label en lugar del valor numérico).
-        "# HELP ucgi_shaper_codec_info Codec actualmente elegido por el shaper para la próxima llamada.",
+        "# HELP ucgi_shaper_source_healthy 1 si la última lectura a MikoPBX fue OK, 0 si falló.",
+        "# TYPE ucgi_shaper_source_healthy gauge",
+        f"ucgi_shaper_source_healthy {0 if _state['lastSourceError'] else 1}",
+        "# HELP ucgi_shaper_codec_info Codec actualmente elegido por el shaper.",
         "# TYPE ucgi_shaper_codec_info gauge",
         f'ucgi_shaper_codec_info{{codec="{decision["codec"]}",tier="{decision["tier"]}"}} 1',
     ]
     return Response("\n".join(lines) + "\n", mimetype="text/plain; version=0.0.4")
+
+
+# Arrancar el poller + traffic sampler siempre que el módulo se cargue.
+_start_poller()
+_start_traffic_sampler()
 
 
 if __name__ == "__main__":
