@@ -173,6 +173,11 @@ def metrics():
         "# HELP ucgi_shaper_required_kbps BW requerido para la próxima llamada con el codec elegido.",
         "# TYPE ucgi_shaper_required_kbps gauge",
         f"ucgi_shaper_required_kbps {decision['requiredKbps']}",
+        # Métrica con el nombre del códec como label (Grafana 'Value mappings'
+        # puede mostrar la label en lugar del valor numérico).
+        "# HELP ucgi_shaper_codec_info Codec actualmente elegido por el shaper para la próxima llamada.",
+        "# TYPE ucgi_shaper_codec_info gauge",
+        f'ucgi_shaper_codec_info{{codec="{decision["codec"]}",tier="{decision["tier"]}"}} 1',
     ]
     return Response("\n".join(lines) + "\n", mimetype="text/plain; version=0.0.4")
 

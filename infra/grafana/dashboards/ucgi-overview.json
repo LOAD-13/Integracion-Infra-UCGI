@@ -43,24 +43,29 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "Tier de codec",
-      "description": "3=FULL (opus+vp8) · 2=MIXED (opus audio) · 1=DOWNGRADED (g729) · 0=EMERGENCY",
+      "title": "Codec actual",
+      "description": "Codec elegido por el shaper para la próxima llamada según BW + concurrencia. opus_24+vp8 (FULL), opus_24 (MIXED), g729 (DOWNGRADED), reject (EMERGENCY).",
       "gridPos": { "h": 4, "w": 4, "x": 6, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
-      "targets": [{ "expr": "ucgi_shaper_tier", "refId": "A" }],
+      "targets": [{
+        "expr": "ucgi_shaper_codec_info",
+        "refId": "A",
+        "legendFormat": "{{codec}} · {{tier}}",
+        "instant": true
+      }],
       "fieldConfig": {
         "defaults": {
-          "mappings": [{ "type": "value", "options": {
-              "0": { "text": "EMERGENCY", "color": "red" },
-              "1": { "text": "DOWNGRADED", "color": "orange" },
-              "2": { "text": "MIXED", "color": "yellow" },
-              "3": { "text": "FULL", "color": "green" }
-          } }],
           "color": { "mode": "thresholds" },
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": 1 }, { "color": "yellow", "value": 2 }, { "color": "green", "value": 3 }] }
-        }
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        },
+        "overrides": [
+          { "matcher": { "id": "byRegexp", "options": ".*opus_24\\+vp8.*" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] },
+          { "matcher": { "id": "byRegexp", "options": ".*opus_24 ·.*" },     "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }] },
+          { "matcher": { "id": "byRegexp", "options": ".*g729.*" },         "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] },
+          { "matcher": { "id": "byRegexp", "options": ".*reject.*" },        "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] }
+        ]
       },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "/^Value$/" }, "colorMode": "background", "textMode": "name", "graphMode": "none" }
     },
     {
       "id": 4,
@@ -98,9 +103,10 @@
       "id": 7,
       "type": "stat",
       "title": "Error rate 5m",
+      "description": "Porcentaje de respuestas 5xx en los últimos 5 minutos. Si no hubo tráfico, muestra 0%.",
       "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
-      "targets": [{ "expr": "sum(rate(http_server_requests_seconds_count{job=\"integration-api\",status=~\"5..\"}[5m])) / clamp_min(sum(rate(http_server_requests_seconds_count{job=\"integration-api\"}[5m])), 0.001)", "refId": "A" }],
+      "targets": [{ "expr": "(sum(rate(http_server_requests_seconds_count{job=\"integration-api\",status=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_server_requests_seconds_count{job=\"integration-api\"}[5m])) or vector(1), 1)", "refId": "A" }],
       "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 2, "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 0.01 }, { "color": "red", "value": 0.05 }] } } },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
@@ -118,12 +124,13 @@
       "id": 11,
       "type": "timeseries",
       "title": "Latency p50/p95/p99 (integration-api)",
+      "description": "Cuantiles de latencia HTTP a partir del histograma Micrometer. p95 = 95% de las peticiones por debajo de ese tiempo.",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
       "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
       "targets": [
-        { "expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"integration-api\"}[5m])))", "legendFormat": "p50", "refId": "A" },
-        { "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"integration-api\"}[5m])))", "legendFormat": "p95", "refId": "B" },
-        { "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"integration-api\"}[5m])))", "legendFormat": "p99", "refId": "C" }
+        { "expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"integration-api\"}[5m]))) or vector(0)", "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"integration-api\"}[5m]))) or vector(0)", "legendFormat": "p95", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"integration-api\"}[5m]))) or vector(0)", "legendFormat": "p99", "refId": "C" }
       ],
       "fieldConfig": { "defaults": { "unit": "s" } }
     },
