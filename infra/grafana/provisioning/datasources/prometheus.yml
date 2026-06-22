@@ -1,0 +1,16 @@
+# Datasource Prometheus auto-provisionado para Grafana.
+# Grafana lo lee al primer arranque desde /etc/grafana/provisioning/datasources/.
+# Si el datasource ya existe con el mismo `uid`, lo actualiza in-place.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: ucgi-prom
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      timeInterval: 15s
+      httpMethod: POST
