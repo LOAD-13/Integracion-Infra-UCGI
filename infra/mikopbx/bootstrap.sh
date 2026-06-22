@@ -184,6 +184,60 @@ fi
 
 PJSIP_CONF="/etc/asterisk/pjsip.conf"
 
+# ---------- Inyectar overrides webrtc + transport=auto en SQLite ----------
+#
+# MikoPBX regenera pjsip.conf desde su SQLite cada vez que el modelo m_Sip
+# cambia (creación/edición de empleados, REST API, GUI). Cualquier sed que
+# hagamos sobre /etc/asterisk/pjsip.conf se borra a los pocos segundos.
+#
+# Solución persistente: meter las directivas WebRTC en la columna
+# `manualattributes` del m_Sip (base64 de INI con secciones [endpoint] y [aor])
+# y forzar transport='' para que MikoPBX use el template `endpoint-auto` (que
+# acepta cualquier transport). Cada vez que MikoPBX regenere pjsip.conf, va a
+# inyectar nuestros overrides automáticamente.
+
+MIKO_DB="/cf/conf/mikopbx.db"
+OVERRIDE_INI='[endpoint]
+webrtc=yes
+media_encryption=dtls
+use_avpf=yes
+ice_support=yes
+dtls_auto_generate_cert=yes
+rtcp_mux=yes
+direct_media=no
+rtp_symmetric=yes
+rewrite_contact=yes
+
+[aor]
+max_contacts=1
+remove_existing=yes
+remove_unavailable=yes
+qualify_frequency=0'
+
+# base64 -w0 portable: usamos `tr -d` por si la build de coreutils en MikoPBX
+# es muy vieja.
+B64=$(printf '%s' "${OVERRIDE_INI}" | run base64 | run tr -d '\n')
+
+if [ -n "${B64}" ]; then
+  CHANGED=$(run sqlite3 "${MIKO_DB}" \
+    "SELECT count(*) FROM m_Sip WHERE extension IN ('1001','1002') AND (manualattributes != '${B64}' OR transport != '');" \
+    2>/dev/null || echo 0)
+  if [ "${CHANGED}" != "0" ]; then
+    log "Inyectando manualattributes webrtc=yes + transport='' en m_Sip (1001, 1002)"
+    run sqlite3 "${MIKO_DB}" \
+      "UPDATE m_Sip SET manualattributes='${B64}', transport='' WHERE extension IN ('1001','1002');"
+    # Disparar regeneración de pjsip.conf a través de un UPDATE que cause un
+    # ModelEvent (cambio en m_Sip.disabled toggle no-op).
+    run sqlite3 "${MIKO_DB}" \
+      "UPDATE m_Sip SET disabled=disabled WHERE extension IN ('1001','1002');"
+    log "Overrides aplicados; pjsip.conf se regenerará en el próximo reload."
+  else
+    log "Overrides webrtc/transport ya presentes en SQLite. Nada que hacer."
+  fi
+else
+  log "WARN: no se pudo generar B64 del INI override; bootstrap continúa."
+fi
+
 # ---------- Parche aor-common → max_contacts=1 ----------
 #
 # El template `[aor-common]` permite hasta 5 contacts simultáneos por AOR. En
