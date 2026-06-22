@@ -21,7 +21,8 @@ scrape_configs:
       - targets: ["integration-api:8081"]
 
   - job_name: shaper
-    metrics_path: /status
+    # /metrics expone los gauges en formato Prometheus (HU-08.5 versión mínima).
+    metrics_path: /metrics
     scheme: http
     static_configs:
       - targets: ["shaper:9100"]
