@@ -10,6 +10,7 @@ public record SipExtensionResponse(
         String username,
         String extensionNumber,
         boolean enabled,
+        boolean manualAttributesApplied,
         Instant createdAt,
         Instant updatedAt
 ) {
@@ -21,6 +22,7 @@ public record SipExtensionResponse(
                 username,
                 entity.getExtensionNumber(),
                 entity.isEnabled(),
+                entity.isManualAttributesApplied(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
         );

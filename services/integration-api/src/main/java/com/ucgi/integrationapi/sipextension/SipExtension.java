@@ -28,6 +28,9 @@ public class SipExtension {
     @Column(name = "enabled", nullable = false)
     private boolean enabled;
 
+    @Column(name = "manual_attributes_applied", nullable = false)
+    private boolean manualAttributesApplied;
+
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
 
@@ -62,6 +65,22 @@ public class SipExtension {
 
     public boolean isEnabled() {
         return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
+    public boolean isManualAttributesApplied() {
+        return manualAttributesApplied;
+    }
+
+    public void setManualAttributesApplied(boolean manualAttributesApplied) {
+        this.manualAttributesApplied = manualAttributesApplied;
+    }
+
+    public void setSipPassword(String sipPassword) {
+        this.sipPassword = sipPassword;
     }
 
     public Instant getCreatedAt() {

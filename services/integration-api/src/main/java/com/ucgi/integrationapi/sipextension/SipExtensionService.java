@@ -81,4 +81,57 @@ public class SipExtensionService {
 
     public record SipExtensionPersistedEvent(String extensionNumber, String displayName, String sipPassword) {
     }
+
+    @Transactional(readOnly = true)
+    public java.util.List<SipExtensionResponse> list() {
+        return sipExtensionRepository.findAll().stream()
+                .map(ext -> SipExtensionResponse.of(ext,
+                        userRepository.findById(ext.getUserId())
+                                .map(User::getUsername).orElse("?")))
+                .toList();
+    }
+
+    @Transactional
+    public SipExtensionResponse update(Long id, SipExtensionUpdateRequest req) {
+        SipExtension ext = sipExtensionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Extension SIP no encontrada: " + id));
+        if (req.password() != null && !req.password().isBlank()) {
+            ext.setSipPassword(req.password());
+        }
+        if (req.enabled() != null) {
+            ext.setEnabled(req.enabled());
+        }
+        SipExtension saved = sipExtensionRepository.save(ext);
+        String username = userRepository.findById(saved.getUserId())
+                .map(User::getUsername).orElse("?");
+        return SipExtensionResponse.of(saved, username);
+    }
+
+    @Transactional
+    public void delete(Long id) {
+        SipExtension ext = sipExtensionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Extension SIP no encontrada: " + id));
+        sipExtensionRepository.delete(ext);
+        // Hint a MikoPBX para que limpie. No tenemos mikoPbxId persistido aun
+        // (deuda S5); por ahora intentamos por number.
+        try {
+            provisioningService.deprovisionExtension(ext.getExtensionNumber());
+        } catch (RuntimeException ex) {
+            log.warn("Deprovisioning best-effort para ext {} falló: {}",
+                    ext.getExtensionNumber(), ex.getMessage());
+        }
+    }
+
+    @Transactional
+    public void markManualAttributesApplied(String extensionNumber) {
+        sipExtensionRepository.findAllByEnabledTrueOrderByExtensionNumberAsc().stream()
+                .filter(e -> extensionNumber.equals(e.getExtensionNumber()))
+                .findFirst()
+                .ifPresent(e -> {
+                    e.setManualAttributesApplied(true);
+                    sipExtensionRepository.save(e);
+                });
+    }
 }
