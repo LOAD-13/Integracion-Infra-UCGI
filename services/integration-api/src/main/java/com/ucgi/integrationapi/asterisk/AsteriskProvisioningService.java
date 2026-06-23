@@ -85,6 +85,25 @@ public class AsteriskProvisioningService {
         return new ProvisioningResult(false, cfg.maxAttempts(), null, "loop sin progreso");
     }
 
+    /**
+     * Eliminar la extensión en MikoPBX. Se necesita un identificador del
+     * employee en MikoPBX (devuelto por createEmployee). Si MikoPBX está
+     * down, registra el error y devuelve sin propagar.
+     */
+    public boolean deprovisionExtension(String mikoPbxId) {
+        if (mikoPbxId == null || mikoPbxId.isBlank()) {
+            log.warn("deprovisionExtension sin mikoPbxId — no se llama a MikoPBX");
+            return false;
+        }
+        try {
+            mikoPbxClient.deleteEmployee(mikoPbxId);
+            return true;
+        } catch (MikoPbxException e) {
+            log.error("deleteEmployee {} fallo: {}", mikoPbxId, e.getMessage());
+            return false;
+        }
+    }
+
     public record ProvisioningResult(boolean success, int attempts, String mikoPbxId, String error) {
     }
 

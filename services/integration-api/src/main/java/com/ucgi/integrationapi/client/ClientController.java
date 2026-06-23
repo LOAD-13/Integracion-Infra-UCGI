@@ -45,6 +45,18 @@ public class ClientController {
         return ResponseEntity.ok(service.findById(id));
     }
 
+    /**
+     * CTI: buscar cliente por caller-id (matching parcial por ultimos digitos).
+     * Devuelve 404 si no matchea. Usado por el ActiveCallPanel del CRM para
+     * cargar automaticamente la ficha del cliente al conectar la llamada.
+     */
+    @GetMapping("/by-phone")
+    public ResponseEntity<ClientResponse> byPhone(@RequestParam("phone") String phone) {
+        return service.findByPhone(phone)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
     @PostMapping
     public ResponseEntity<ClientResponse> create(@Valid @RequestBody ClientRequest req) {
         ClientResponse created = service.create(req);

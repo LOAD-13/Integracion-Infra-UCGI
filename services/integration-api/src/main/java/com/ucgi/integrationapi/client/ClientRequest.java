@@ -3,6 +3,7 @@ package com.ucgi.integrationapi.client;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import java.util.Set;
 
 /**
  * DTO de alta y edición. Mismos campos en ambos casos — el front decide qué
@@ -14,6 +15,7 @@ public record ClientRequest(
         @NotBlank @Size(max = 32) String phone,
         @Email @Size(max = 255) String email,
         @Size(max = 255) String company,
-        String notesSummary
+        String notesSummary,
+        Set<Long> tagIds
 ) {
 }

@@ -5,9 +5,13 @@ import com.ucgi.integrationapi.sipextension.SipExtension;
 import com.ucgi.integrationapi.sipextension.SipExtensionRepository;
 import com.ucgi.integrationapi.user.User;
 import com.ucgi.integrationapi.user.UserRepository;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -42,5 +46,25 @@ public class MeController {
                 ext.getExtensionNumber(),
                 user.getFullName(),
                 ext.getSipPassword()));
+    }
+
+    @GetMapping("/status")
+    public ResponseEntity<AgentStatusResponse> getStatus(Authentication auth) {
+        User user = userRepository.findByUsername(auth.getName())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Usuario no encontrado: " + auth.getName()));
+        return ResponseEntity.ok(AgentStatusResponse.from(user));
+    }
+
+    @PatchMapping("/status")
+    @Transactional
+    public ResponseEntity<AgentStatusResponse> setStatus(Authentication auth,
+                                                         @Valid @RequestBody AgentStatusRequest req) {
+        User user = userRepository.findByUsername(auth.getName())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Usuario no encontrado: " + auth.getName()));
+        user.updateAgentStatus(req.status());
+        userRepository.save(user);
+        return ResponseEntity.ok(AgentStatusResponse.from(user));
     }
 }
