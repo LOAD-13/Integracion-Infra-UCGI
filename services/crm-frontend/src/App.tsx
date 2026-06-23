@@ -1,6 +1,8 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/layout/AppShell";
 import { LoginPage } from "./pages/LoginPage";
+import { useAuth } from "./auth/useAuth";
+import { ForcePasswordChange } from "./components/auth/ForcePasswordChange";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ClientsPage } from "./pages/ClientsPage";
 import { ClientDetailPage } from "./pages/ClientDetailPage";
@@ -31,16 +33,19 @@ function AdminShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function App() {
+function AppRoutes() {
+  const { session } = useAuth();
   return (
-    <Routes>
+    <>
+      {session?.mustChangePassword && <ForcePasswordChange />}
+      <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/" element={<Shell><DashboardPage /></Shell>} />
       <Route path="/dashboard" element={<Shell><DashboardPage /></Shell>} />
       <Route path="/clients" element={<Shell><ClientsPage /></Shell>} />
-      <Route path="/clients/new" element={<Shell><ClientFormPage mode="create" /></Shell>} />
+      <Route path="/clients/new" element={<AdminShell><ClientFormPage mode="create" /></AdminShell>} />
       <Route path="/clients/:id" element={<Shell><ClientDetailPage /></Shell>} />
-      <Route path="/clients/:id/edit" element={<Shell><ClientFormPage mode="edit" /></Shell>} />
+      <Route path="/clients/:id/edit" element={<AdminShell><ClientFormPage mode="edit" /></AdminShell>} />
       <Route path="/metrics" element={<Shell><MetricsPage /></Shell>} />
       <Route path="/campaigns" element={<Shell><CampaignsPage /></Shell>} />
       <Route path="/admin/users" element={<AdminShell><AdminUsersPage /></AdminShell>} />
@@ -50,6 +55,11 @@ export default function App() {
       <Route path="/admin/inbound-routing" element={<AdminShell><AdminInboundRoutingPage /></AdminShell>} />
       <Route path="/admin/parking" element={<AdminShell><AdminParkingPage /></AdminShell>} />
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      </Routes>
+    </>
   );
+}
+
+export default function App() {
+  return <AppRoutes />;
 }

@@ -28,7 +28,9 @@ export function AgentStatusSelector({ collapsed }: AgentStatusSelectorProps) {
   const [info, setInfo] = useState<AgentStatusInfo | null>(null);
   const [open, setOpen] = useState(false);
   const [elapsed, setElapsed] = useState("00:00");
+  const [popoverPos, setPopoverPos] = useState<{ left: number; bottom: number; width: number } | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
 
   // Carga inicial.
   useEffect(() => {
@@ -62,16 +64,41 @@ export function AgentStatusSelector({ collapsed }: AgentStatusSelectorProps) {
     return () => window.clearInterval(id);
   }, [info]);
 
-  // Click outside cierra.
+  // Click outside cierra. El popover vive en document.body via position:fixed,
+  // por eso comprobamos contra el container del botón Y contra el popover.
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const insideTrigger = containerRef.current?.contains(target);
+      const popover = document.getElementById("df-agent-status-popover");
+      const insidePopover = popover?.contains(target);
+      if (!insideTrigger && !insidePopover) {
         setOpen(false);
       }
     };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  // Posición del popover: por encima del botón, en coordenadas de viewport.
+  useEffect(() => {
+    if (!open || !buttonRef.current) return;
+    const update = () => {
+      const rect = buttonRef.current!.getBoundingClientRect();
+      setPopoverPos({
+        left: rect.left,
+        bottom: window.innerHeight - rect.top + 8,
+        width: Math.max(rect.width, 238),
+      });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
   }, [open]);
 
   const current = info?.status ?? "OFFLINE";
@@ -93,6 +120,7 @@ export function AgentStatusSelector({ collapsed }: AgentStatusSelectorProps) {
   return (
     <div ref={containerRef} className="relative">
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
@@ -115,8 +143,12 @@ export function AgentStatusSelector({ collapsed }: AgentStatusSelectorProps) {
         {!collapsed && <ChevronDown className="h-[15px] w-[15px] text-df-rail-text" />}
       </button>
 
-      {open && (
-        <div className="absolute bottom-[calc(100%+8px)] left-0 z-50 w-[238px] animate-df-in rounded-[13px] border border-df-border-strong bg-df-surface p-2 shadow-[0_14px_40px_rgba(13,37,66,.16)]">
+      {open && popoverPos && (
+        <div
+          id="df-agent-status-popover"
+          className="fixed z-[9999] animate-df-in rounded-[13px] border border-df-border-strong bg-df-surface p-2 shadow-[0_14px_40px_rgba(13,37,66,.16)]"
+          style={{ left: popoverPos.left, bottom: popoverPos.bottom, width: popoverPos.width }}
+        >
           {(Object.keys(STATUS_DEFS) as AgentStatus[]).map((key) => {
             const opt = STATUS_DEFS[key];
             return (

@@ -20,6 +20,9 @@ function renderApp() {
 
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn());
+  // AuthProvider ahora persiste en localStorage; limpiamos entre tests para
+  // que cada uno arranque sin sesión.
+  window.localStorage.clear();
 });
 
 afterEach(() => {

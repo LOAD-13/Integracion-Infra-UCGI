@@ -20,6 +20,7 @@ export const clientSchema = z.object({
     }),
   company: z.string().trim().max(255, "Máximo 255 caracteres"),
   notesSummary: z.string().trim().max(2000, "Máximo 2000 caracteres"),
+  tagIds: z.array(z.number()),
 });
 
 export type ClientFormValues = z.infer<typeof clientSchema>;
@@ -30,4 +31,5 @@ export const emptyClient: ClientFormValues = {
   email: "",
   company: "",
   notesSummary: "",
+  tagIds: [],
 };

@@ -32,10 +32,11 @@ export function AdminUsersPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function handleCreate(payload: CreateUserPayload) {
-    if (!session) return;
-    await createUser(session.token, payload);
+  async function handleCreate(payload: CreateUserPayload): Promise<UserSummary> {
+    if (!session) throw new Error("Sin sesión");
+    const created = await createUser(session.token, payload);
     await load();
+    return created;
   }
 
   async function handleRoleChange(user: UserSummary, role: "ADMIN" | "AGENTE") {

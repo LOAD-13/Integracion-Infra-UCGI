@@ -4,11 +4,13 @@ import com.ucgi.integrationapi.cdr.Cdr;
 import com.ucgi.integrationapi.cdr.CdrRepository;
 import com.ucgi.integrationapi.cdr.CdrSpecifications;
 import com.ucgi.integrationapi.error.ResourceNotFoundException;
+import com.ucgi.integrationapi.user.User;
 import com.ucgi.integrationapi.user.UserRepository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -78,5 +80,85 @@ public class MetricsService {
 
         return new AgentMetricsResponse(date.toString(), answered, missed, busy,
                 failed, total, avg, rate, byHour);
+    }
+
+    @Transactional(readOnly = true)
+    public AdminMetricsResponse computeForAdmin(LocalDate date) {
+        LocalDateTime from = date.atStartOfDay();
+        LocalDateTime to = date.atTime(LocalTime.MAX);
+
+        List<Cdr> cdrs = cdrRepository.findAll(
+                CdrSpecifications.startedAfter(from)
+                        .and(CdrSpecifications.startedBefore(to)));
+
+        long answered = 0;
+        long missed = 0;
+        long totalDur = 0;
+        Map<Integer, long[]> hourly = new HashMap<>();
+        // username -> [total, answered, durationSum]
+        Map<Long, long[]> perAgent = new HashMap<>();
+
+        for (Cdr c : cdrs) {
+            int hour = c.getStartTime() != null ? c.getStartTime().getHour() : 0;
+            long[] bucket = hourly.computeIfAbsent(hour, k -> new long[2]);
+            bucket[0]++;
+
+            long[] agentAcc = c.getAgentUserId() != null
+                    ? perAgent.computeIfAbsent(c.getAgentUserId(), k -> new long[3])
+                    : null;
+            if (agentAcc != null) agentAcc[0]++;
+
+            if (c.getDisposition() == Cdr.Disposition.ANSWERED) {
+                answered++;
+                totalDur += c.getDurationSeconds();
+                bucket[1]++;
+                if (agentAcc != null) {
+                    agentAcc[1]++;
+                    agentAcc[2] += c.getDurationSeconds();
+                }
+            } else if (c.getDisposition() == Cdr.Disposition.NO_ANSWER
+                    || c.getDisposition() == Cdr.Disposition.BUSY
+                    || c.getDisposition() == Cdr.Disposition.FAILED) {
+                missed++;
+            }
+        }
+
+        long total = cdrs.size();
+        double avg = answered > 0 ? (double) totalDur / answered : 0;
+        double rate = total > 0 ? (double) answered / total : 0;
+
+        List<AgentMetricsResponse.HourlyBucket> byHour = new ArrayList<>();
+        for (int h = 0; h < 24; h++) {
+            long[] b = hourly.getOrDefault(h, new long[]{0, 0});
+            byHour.add(new AgentMetricsResponse.HourlyBucket(h, b[0], b[1]));
+        }
+
+        List<User> allUsers = userRepository.findAll();
+        long activeAgents = allUsers.stream()
+                .filter(u -> !"ADMIN".equalsIgnoreCase(u.getRole()))
+                .filter(u -> u.getAgentStatus() == User.AgentStatus.AVAILABLE)
+                .count();
+        long totalAgents = allUsers.stream()
+                .filter(u -> !"ADMIN".equalsIgnoreCase(u.getRole()))
+                .count();
+        Map<Long, User> usersById = new HashMap<>();
+        for (User u : allUsers) usersById.put(u.getId(), u);
+
+        List<AdminMetricsResponse.AgentBreakdown> top = perAgent.entrySet().stream()
+                .map(e -> {
+                    User u = usersById.get(e.getKey());
+                    long[] acc = e.getValue();
+                    double agentAvg = acc[1] > 0 ? (double) acc[2] / acc[1] : 0;
+                    return new AdminMetricsResponse.AgentBreakdown(
+                            u != null ? u.getUsername() : "?",
+                            u != null ? u.getFullName() : "?",
+                            acc[0], acc[1], agentAvg);
+                })
+                .sorted(Comparator.comparingLong(AdminMetricsResponse.AgentBreakdown::totalCalls).reversed())
+                .limit(5)
+                .toList();
+
+        return new AdminMetricsResponse(date.toString(), total, answered, missed,
+                rate, avg, activeAgents, totalAgents, top, byHour);
     }
 }

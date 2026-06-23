@@ -61,7 +61,7 @@ public class UserController {
             @NotBlank @Email @Size(max = 255) String email,
             @NotBlank @Size(max = 255) String fullName,
             @NotBlank @Pattern(regexp = "ADMIN|AGENTE") String role,
-            @NotBlank @Size(min = 8, max = 128) String password
+            @Size(max = 128) String password
     ) {
     }
 
@@ -77,7 +77,9 @@ public class UserController {
             String fullName,
             String role,
             boolean active,
-            Instant createdAt
+            Instant createdAt,
+            /** Contraseña inicial autogenerada — null para list/update. Solo viene en create. */
+            String generatedPassword
     ) {
     }
 }

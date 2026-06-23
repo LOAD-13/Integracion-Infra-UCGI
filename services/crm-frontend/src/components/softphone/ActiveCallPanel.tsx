@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, Mic, MicOff, Pause, Phone, Play, UserPlus, Video, X } from "lucide-react";
+import { ExternalLink, Mic, MicOff, Pause, Phone, Play, UserPlus, Video, VideoOff, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useSip } from "@/sip/useSip";
 import { useAuth } from "@/auth/useAuth";
@@ -20,7 +20,7 @@ const OUTCOMES: Array<{ key: string; label: string; dot: string }> = [
 ];
 
 export function ActiveCallPanel({ open, onClose }: ActiveCallPanelProps) {
-  const { state, hangup, toggleMute, toggleHold } = useSip();
+  const { state, hangup, toggleMute, toggleHold, toggleVideo } = useSip();
   const { session } = useAuth();
   const { push } = useToast();
   const navigate = useNavigate();
@@ -48,12 +48,16 @@ export function ActiveCallPanel({ open, onClose }: ActiveCallPanelProps) {
 
   return (
     <>
-      <div
-        className="fixed inset-0 z-[42] animate-df-fade"
-        style={{ background: "rgba(8,18,32,.5)" }}
-        onClick={onClose}
-        aria-hidden
-      />
+      {/* Backdrop solo cuando el video NO está activo, para que en modo video
+          se vea el overlay grande detrás. */}
+      {!state.videoEnabled && (
+        <div
+          className="fixed inset-0 z-[42] animate-df-fade"
+          style={{ background: "rgba(8,18,32,.5)" }}
+          onClick={onClose}
+          aria-hidden
+        />
+      )}
       <div
         className="fixed bottom-0 right-0 top-0 z-[43] flex w-[420px] animate-df-slidein flex-col border-l border-df-border bg-df-surface shadow-[0_14px_40px_rgba(13,37,66,.16)]"
         role="dialog"
@@ -109,6 +113,33 @@ export function ActiveCallPanel({ open, onClose }: ActiveCallPanelProps) {
               )}
             </div>
           </div>
+
+          {/* Toggle a/desde videollamada — siempre visible cuando hay llamada activa. */}
+          {inActive && (
+            <button
+              type="button"
+              onClick={() => void toggleVideo()}
+              className="flex h-[42px] items-center justify-center gap-2 rounded-[11px] border text-[13.5px] font-bold hover:brightness-110"
+              style={{
+                background: state.videoEnabled ? "hsl(var(--df-hang) / 0.11)" : "hsl(var(--df-brand) / 0.13)",
+                borderColor: state.videoEnabled ? "hsl(var(--df-hang))" : "hsl(var(--df-brand))",
+                color: state.videoEnabled ? "hsl(var(--df-hang))" : "hsl(var(--df-brand-ink))",
+              }}
+              aria-label={state.videoEnabled ? "Volver a solo audio" : "Cambiar a videollamada"}
+            >
+              {state.videoEnabled ? (
+                <>
+                  <VideoOff className="h-4 w-4" aria-hidden />
+                  Volver a solo audio
+                </>
+              ) : (
+                <>
+                  <Video className="h-4 w-4" aria-hidden />
+                  Cambiar a videollamada
+                </>
+              )}
+            </button>
+          )}
 
           {client && (
             <button
@@ -207,9 +238,6 @@ export function ActiveCallPanel({ open, onClose }: ActiveCallPanelProps) {
     </>
   );
 }
-
-// Ignore unused Video import — reservado para futura toggle del overlay desde el panel.
-void Video;
 
 function initials(name: string): string {
   if (!name) return "?";

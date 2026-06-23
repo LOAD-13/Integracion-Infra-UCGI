@@ -1,7 +1,9 @@
-import { useState, type FormEvent } from "react";
+import { Suspense, lazy, useState, type FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { useAuth } from "@/auth/useAuth";
+
+const LoginGlobe = lazy(() => import("@/components/login/LoginGlobe"));
 
 export function LoginPage() {
   const { session, signIn, loading, error } = useAuth();
@@ -34,6 +36,9 @@ export function LoginPage() {
           className="absolute -right-32 -top-32 h-[440px] w-[440px] rounded-full"
           style={{ background: "radial-gradient(circle, rgba(40,194,226,.18), transparent 70%)" }}
         />
+        <Suspense fallback={null}>
+          <LoginGlobe />
+        </Suspense>
         <div className="relative flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-[13px] bg-white p-1.5">
             <img src="/dialflow-icon.png" alt="" className="block h-full w-full object-contain" />
@@ -135,7 +140,7 @@ export function LoginPage() {
             </button>
           </form>
           <div className="mt-5 rounded-[10px] border border-df-border bg-df-surface-2 px-3 py-2.5 text-[12px] text-df-text-muted">
-            La sesión se guarda solo en memoria — al refrescar el navegador tendrás que ingresar de nuevo.
+            Tu sesión queda guardada en este navegador hasta que cierres sesión manualmente.
           </div>
         </div>
       </div>

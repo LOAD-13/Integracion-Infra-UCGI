@@ -22,6 +22,7 @@ const FILTERS: Array<{ key: FilterKey; label: string }> = [
 
 export function ClientsPage() {
   const { session } = useAuth();
+  const isAdmin = session?.role === "ADMIN";
   const [searchParams, setSearchParams] = useSearchParams();
 
   const initialQ = searchParams.get("q") ?? "";
@@ -107,13 +108,15 @@ export function ClientsPage() {
             );
           })}
         </div>
-        <Link
-          to="/clients/new"
-          className="flex h-10 items-center gap-1.5 rounded-[10px] border-0 bg-df-navy px-4 text-[13.5px] font-bold text-white hover:brightness-110"
-        >
-          <Plus className="h-4 w-4" aria-hidden />
-          Nuevo cliente
-        </Link>
+        {isAdmin && (
+          <Link
+            to="/clients/new"
+            className="flex h-10 items-center gap-1.5 rounded-[10px] border-0 bg-df-navy px-4 text-[13.5px] font-bold text-white hover:brightness-110"
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            Nuevo cliente
+          </Link>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-[14px] border border-df-border bg-df-surface shadow-[0_1px_2px_rgba(13,37,66,.04)]">

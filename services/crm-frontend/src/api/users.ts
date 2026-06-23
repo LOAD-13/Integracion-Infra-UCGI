@@ -8,6 +8,8 @@ export interface UserSummary {
   role: "ADMIN" | "AGENTE";
   active: boolean;
   createdAt: string;
+  /** Solo viene en la respuesta de POST cuando el backend la autogeneró. */
+  generatedPassword?: string | null;
 }
 
 export interface CreateUserPayload {
@@ -15,7 +17,24 @@ export interface CreateUserPayload {
   email: string;
   fullName: string;
   role: "ADMIN" | "AGENTE";
-  password: string;
+  /** Si vacío, el backend genera "nombre.apellido" y obliga a cambiarla en el primer login. */
+  password?: string;
+}
+
+export interface ChangePasswordPayload {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export async function changeOwnPassword(
+  token: string,
+  payload: ChangePasswordPayload,
+): Promise<void> {
+  const response = await authorizedFetch(token, "/v1/me/change-password", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok && response.status !== 204) throw await parseError(response);
 }
 
 async function parseError(response: Response): Promise<ApiError> {

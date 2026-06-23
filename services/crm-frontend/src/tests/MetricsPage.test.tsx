@@ -11,6 +11,7 @@ const authValue = {
   error: null,
   signIn: vi.fn(),
   signOut: vi.fn(),
+  clearMustChangePassword: vi.fn(),
 };
 
 const sampleMetrics = {

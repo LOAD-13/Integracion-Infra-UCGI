@@ -39,6 +39,9 @@ public class User {
     @Column(name = "status_since", nullable = false)
     private Instant statusSince;
 
+    @Column(name = "must_change_password", nullable = false)
+    private boolean mustChangePassword;
+
     protected User() {
     }
 
@@ -51,9 +54,15 @@ public class User {
         return agentStatus == null ? AgentStatus.OFFLINE : agentStatus;
     }
     public Instant getStatusSince() { return statusSince; }
+    public boolean isMustChangePassword() { return mustChangePassword; }
 
     public void updateAgentStatus(AgentStatus next) {
         this.agentStatus = next;
         this.statusSince = Instant.now();
+    }
+
+    public void setPasswordHash(String hash, boolean mustChange) {
+        this.passwordHash = hash;
+        this.mustChangePassword = mustChange;
     }
 }

@@ -9,6 +9,7 @@ import { ActiveCallPanel } from "@/components/softphone/ActiveCallPanel";
 import { DialerSheet } from "@/components/softphone/DialerSheet";
 import { SoftphoneDock } from "@/components/softphone/SoftphoneDock";
 import { VideoCallOverlay } from "@/components/softphone/VideoCallOverlay";
+import { DialerProvider, useDialer } from "@/components/softphone/dialer-context";
 import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
 
@@ -31,8 +32,20 @@ const TITLES: Record<string, { breadcrumb: string; title: string }> = {
   "/admin/tags": { breadcrumb: "Administración", title: "Catálogo de tags" },
 };
 
-function resolveTitle(pathname: string) {
-  if (TITLES[pathname]) return TITLES[pathname];
+function resolveTitle(pathname: string, isAdmin: boolean) {
+  if (TITLES[pathname]) {
+    if (pathname === "/" || pathname === "/dashboard") {
+      return isAdmin
+        ? { breadcrumb: "Administración", title: "Panel de supervisión" }
+        : TITLES[pathname];
+    }
+    if (pathname === "/metrics") {
+      return isAdmin
+        ? { breadcrumb: "Administración", title: "Métricas globales" }
+        : TITLES[pathname];
+    }
+    return TITLES[pathname];
+  }
   if (pathname.startsWith("/clients/") && pathname.endsWith("/edit")) {
     return { breadcrumb: "Clientes", title: "Editar cliente" };
   }
@@ -42,18 +55,22 @@ function resolveTitle(pathname: string) {
   return { breadcrumb: "Operación", title: "DialFlow CRM" };
 }
 
-export function AppShell({ children }: AppShellProps) {
+function ShellInner({ children }: AppShellProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [dialerOpen, setDialerOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [videoOpen, setVideoOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   const { session } = useAuth();
   const { state: sip } = useSip();
+  const { open: dialerOpen, openDialer, closeDialer } = useDialer();
   const { pathname } = useLocation();
-  const { breadcrumb, title } = useMemo(() => resolveTitle(pathname), [pathname]);
+  const isAdmin = session?.role === "ADMIN";
+  const { breadcrumb, title } = useMemo(
+    () => resolveTitle(pathname, isAdmin),
+    [pathname, isAdmin],
+  );
 
   // Unread count cada 30s.
   useEffect(() => {
@@ -76,12 +93,12 @@ export function AppShell({ children }: AppShellProps) {
       if (cmdOrCtrl && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setCommandOpen((v) => !v);
-      } else if (cmdOrCtrl && e.key.toLowerCase() === "d") {
+      } else if (cmdOrCtrl && e.key.toLowerCase() === "d" && !isAdmin) {
         e.preventDefault();
-        setDialerOpen(true);
+        openDialer();
       } else if (e.key === "Escape") {
         setCommandOpen(false);
-        setDialerOpen(false);
+        closeDialer();
         setPanelOpen(false);
         setVideoOpen(false);
         setNotifOpen(false);
@@ -89,12 +106,12 @@ export function AppShell({ children }: AppShellProps) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [isAdmin, openDialer, closeDialer]);
 
-  // Cuando entra una llamada o el video se activa, abrir overlays automáticos (CTI).
+  // Auto-abre panel y video según estado SIP (solo agente — admin no llama).
   useEffect(() => {
+    if (isAdmin) return;
     if (sip.call === "connected" && !panelOpen && !videoOpen) {
-      // Abre el ActiveCallPanel automáticamente al conectar (CTI).
       setPanelOpen(true);
     }
     if (sip.videoEnabled && sip.call === "connected") {
@@ -105,7 +122,7 @@ export function AppShell({ children }: AppShellProps) {
       setVideoOpen(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sip.call, sip.videoEnabled]);
+  }, [sip.call, sip.videoEnabled, isAdmin]);
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-df-bg">
@@ -125,20 +142,35 @@ export function AppShell({ children }: AppShellProps) {
           </main>
         </div>
       </div>
-      <SoftphoneDock />
+      {/* Admin no llama: oculta softphone, dialer y overlays de llamada. */}
+      {!isAdmin && <SoftphoneDock />}
+      {!isAdmin && <DialerSheet open={dialerOpen} onClose={closeDialer} />}
+      {!isAdmin && <ActiveCallPanel open={panelOpen} onClose={() => setPanelOpen(false)} />}
+      {!isAdmin && (
+        <VideoCallOverlay
+          open={videoOpen}
+          onClose={() => setVideoOpen(false)}
+          sideOffset={panelOpen ? 420 : 0}
+        />
+      )}
       <NotificationsPopover
         open={notifOpen}
         onClose={() => setNotifOpen(false)}
         onAllRead={() => setUnread(0)}
       />
-      <DialerSheet open={dialerOpen} onClose={() => setDialerOpen(false)} />
-      <ActiveCallPanel open={panelOpen} onClose={() => setPanelOpen(false)} />
-      <VideoCallOverlay open={videoOpen} onClose={() => setVideoOpen(false)} />
       <CommandPalette
         open={commandOpen}
         onClose={() => setCommandOpen(false)}
-        onOpenDialer={() => setDialerOpen(true)}
+        onOpenDialer={() => !isAdmin && openDialer()}
       />
     </div>
+  );
+}
+
+export function AppShell({ children }: AppShellProps) {
+  return (
+    <DialerProvider>
+      <ShellInner>{children}</ShellInner>
+    </DialerProvider>
   );
 }

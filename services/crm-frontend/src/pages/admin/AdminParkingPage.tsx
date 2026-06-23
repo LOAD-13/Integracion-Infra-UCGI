@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Save, Trash2 } from "lucide-react";
+import { ExternalLink, Plus, Save, Trash2 } from "lucide-react";
 import { useAuth } from "@/auth/useAuth";
 import {
   createIvrOption,
@@ -19,6 +19,22 @@ const ACTION_LABEL: Record<ParkingAction, string> = {
   HANGUP: "Colgar",
   TRANSFER_SKILL: "Transferir a skill",
 };
+
+// Archivos típicos del catálogo MikoPBX. El admin sube los suyos desde
+// http://localhost:8090 → Telefonía → Archivos de sonido (o Música en espera).
+const PRESET_GREETING_FILES: Array<{ label: string; value: string }> = [
+  { label: "— Sin locución —", value: "" },
+  { label: "Bienvenida estándar (es-ES)", value: "custom/welcome-es" },
+  { label: "Aviso 'todos los agentes ocupados'", value: "custom/all-agents-busy-es" },
+  { label: "Aviso 'fuera de horario'", value: "custom/out-of-hours-es" },
+];
+
+const PRESET_HOLD_MUSIC: Array<{ label: string; value: string }> = [
+  { label: "— Sin música —", value: "" },
+  { label: "The Calling — Angelwing", value: "moh/The_Calling_by_Angelwing.mp3" },
+  { label: "The Nymphaeum part V — Angelwing", value: "moh/The_Nymphaeum_part_V_Angelwing.mp3" },
+  { label: "Default MikoPBX", value: "default" },
+];
 
 export function AdminParkingPage() {
   const { session } = useAuth();
@@ -91,15 +107,21 @@ export function AdminParkingPage() {
               onChange={(e) => setConfig({ ...config, timeoutSeconds: parseInt(e.target.value, 10) || 0 })}
               className="h-10 w-full rounded-[10px] border border-df-border bg-df-surface-2 px-3 text-[14px] outline-none focus:border-df-brand" />
           </Field>
-          <Field label="Locución URL (greeting)">
-            <input type="url" value={config.greetingUrl ?? ""}
-              onChange={(e) => setConfig({ ...config, greetingUrl: e.target.value || null })}
-              placeholder="https://..." className="h-10 w-full rounded-[10px] border border-df-border bg-df-surface-2 px-3 text-[14px] outline-none focus:border-df-brand" />
+          <Field label="Locución inicial (archivo MikoPBX)">
+            <MediaFileInput
+              value={config.greetingUrl ?? ""}
+              onChange={(v) => setConfig({ ...config, greetingUrl: v || null })}
+              presets={PRESET_GREETING_FILES}
+              placeholder="custom/welcome-es o https://..."
+            />
           </Field>
-          <Field label="Música de espera URL">
-            <input type="url" value={config.holdMusicUrl ?? ""}
-              onChange={(e) => setConfig({ ...config, holdMusicUrl: e.target.value || null })}
-              placeholder="https://..." className="h-10 w-full rounded-[10px] border border-df-border bg-df-surface-2 px-3 text-[14px] outline-none focus:border-df-brand" />
+          <Field label="Música en espera (archivo MikoPBX)">
+            <MediaFileInput
+              value={config.holdMusicUrl ?? ""}
+              onChange={(v) => setConfig({ ...config, holdMusicUrl: v || null })}
+              presets={PRESET_HOLD_MUSIC}
+              placeholder="moh/archivo.mp3 o https://..."
+            />
           </Field>
           <Field label={`Volumen ${config.volumePct}%`}>
             <input type="range" min={0} max={100} value={config.volumePct}
@@ -113,7 +135,16 @@ export function AdminParkingPage() {
             </label>
           </div>
         </div>
-        <div className="flex justify-end border-t border-df-border px-5 py-3">
+        <div className="flex items-center justify-between border-t border-df-border px-5 py-3">
+          <a
+            href="http://localhost:8090/admin-cabinet/sound-files/index/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-[12px] font-semibold text-df-brand-ink hover:underline"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            Subir archivos en la GUI de MikoPBX
+          </a>
           <button type="button" onClick={handleSaveConfig}
             className="flex h-10 items-center gap-1.5 rounded-[10px] border-0 bg-df-navy px-4 text-[13px] font-bold text-white hover:brightness-110">
             <Save className="h-4 w-4" aria-hidden />
@@ -180,6 +211,50 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div className="flex flex-col gap-1.5">
       <label className="text-[12px] font-bold text-df-text-muted">{label}</label>
       {children}
+    </div>
+  );
+}
+
+function MediaFileInput({
+  value,
+  onChange,
+  presets,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  presets: Array<{ label: string; value: string }>;
+  placeholder: string;
+}) {
+  const matchedPreset = presets.find((p) => p.value === value);
+  const showCustom = !matchedPreset;
+  return (
+    <div className="flex flex-col gap-2">
+      <select
+        value={showCustom ? "__custom__" : value}
+        onChange={(e) => {
+          if (e.target.value === "__custom__") {
+            onChange(value || "custom/");
+          } else {
+            onChange(e.target.value);
+          }
+        }}
+        className="h-10 w-full rounded-[10px] border border-df-border bg-df-surface-2 px-3 text-[14px] outline-none focus:border-df-brand"
+      >
+        {presets.map((p) => (
+          <option key={p.value} value={p.value}>{p.label}</option>
+        ))}
+        <option value="__custom__">Custom / URL externa…</option>
+      </select>
+      {showCustom && (
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="ff-mono h-10 w-full rounded-[10px] border border-df-border bg-df-surface-2 px-3 text-[13px] outline-none focus:border-df-brand"
+        />
+      )}
     </div>
   );
 }

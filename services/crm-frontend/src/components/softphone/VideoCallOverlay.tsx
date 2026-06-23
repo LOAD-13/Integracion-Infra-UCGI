@@ -5,9 +5,11 @@ import { useSip } from "@/sip/useSip";
 interface VideoCallOverlayProps {
   open: boolean;
   onClose: () => void;
+  /** Pixeles a respetar a la derecha (cuando el ActiveCallPanel está abierto). */
+  sideOffset?: number;
 }
 
-export function VideoCallOverlay({ open, onClose }: VideoCallOverlayProps) {
+export function VideoCallOverlay({ open, onClose, sideOffset = 0 }: VideoCallOverlayProps) {
   const { state, hangup, toggleMute, toggleVideo, localStream, remoteStream } = useSip();
   const [callStartedAt, setCallStartedAt] = useState<number | null>(null);
   const [timer, setTimer] = useState("00:00");
@@ -49,8 +51,8 @@ export function VideoCallOverlay({ open, onClose }: VideoCallOverlayProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[55] flex animate-df-fade items-center justify-center p-8"
-      style={{ background: "rgba(6,14,26,.78)" }}
+      className="fixed inset-0 z-[44] flex animate-df-fade items-center justify-center p-8"
+      style={{ background: "rgba(6,14,26,.78)", paddingRight: sideOffset + 32 }}
       role="dialog"
       aria-label="Videollamada en curso"
     >
