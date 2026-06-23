@@ -10,10 +10,10 @@ import {
   PauseCircle,
   Phone,
   LogOut,
-  ChevronDown,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/auth/useAuth";
+import { AgentStatusSelector } from "@/components/agent/AgentStatusSelector";
 import { cn } from "@/lib/utils";
 
 type NavItem = {
@@ -98,17 +98,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
       </nav>
 
       <div className="flex flex-none flex-col gap-[9px] border-t border-white/10 p-3">
-        {/* Placeholder de AgentStatusSelector (lo monta PR-C). Por ahora muestra rol. */}
-        <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-2.5">
-          <span className="inline-flex h-[11px] w-[11px] flex-none rounded-full bg-df-st-offline" />
-          {!collapsed && (
-            <span className="flex flex-1 flex-col overflow-hidden text-left leading-tight">
-              <span className="text-[13px] font-bold text-white">Desconectado</span>
-              <span className="ff-mono text-[11px] text-df-rail-text">Sin estado activo</span>
-            </span>
-          )}
-          {!collapsed && <ChevronDown className="h-[15px] w-[15px] text-df-rail-text" />}
-        </div>
+        <AgentStatusSelector collapsed={collapsed} />
 
         {!collapsed && (
           <div className="flex items-center gap-3 px-1 pt-1">

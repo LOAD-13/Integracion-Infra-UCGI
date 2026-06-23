@@ -1,5 +1,9 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
+import { useAuth } from "@/auth/useAuth";
+import { getUnreadCount } from "@/api/notifications";
+import { NotificationsPopover } from "@/components/notifications/NotificationsPopover";
+import { SoftphoneDock } from "@/components/softphone/SoftphoneDock";
 import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
 
@@ -24,7 +28,6 @@ const TITLES: Record<string, { breadcrumb: string; title: string }> = {
 
 function resolveTitle(pathname: string) {
   if (TITLES[pathname]) return TITLES[pathname];
-  // Patrones para detalles de cliente.
   if (pathname.startsWith("/clients/") && pathname.endsWith("/edit")) {
     return { breadcrumb: "Clientes", title: "Editar cliente" };
   }
@@ -36,8 +39,25 @@ function resolveTitle(pathname: string) {
 
 export function AppShell({ children }: AppShellProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [unread, setUnread] = useState(0);
+  const { session } = useAuth();
   const { pathname } = useLocation();
   const { breadcrumb, title } = useMemo(() => resolveTitle(pathname), [pathname]);
+
+  // Poll unread count cada 30s.
+  useEffect(() => {
+    if (!session) return;
+    let cancelled = false;
+    const tick = () => {
+      getUnreadCount(session.token)
+        .then((c) => { if (!cancelled) setUnread(c); })
+        .catch(() => { /* silencioso */ });
+    };
+    tick();
+    const id = window.setInterval(tick, 30000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, [session]);
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-df-bg">
@@ -47,14 +67,21 @@ export function AppShell({ children }: AppShellProps) {
           <Header
             breadcrumb={breadcrumb}
             title={title}
+            unreadCount={unread}
             onToggleSidebar={() => setCollapsed((v) => !v)}
+            onOpenNotifications={() => setNotifOpen((v) => !v)}
           />
           <main className="df-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
             <div className="px-8 py-6 pb-24">{children}</div>
           </main>
         </div>
       </div>
-      {/* SoftphoneDock va aquí en PR-C como un slot fixed bottom. */}
+      <SoftphoneDock />
+      <NotificationsPopover
+        open={notifOpen}
+        onClose={() => setNotifOpen(false)}
+        onAllRead={() => setUnread(0)}
+      />
     </div>
   );
 }
