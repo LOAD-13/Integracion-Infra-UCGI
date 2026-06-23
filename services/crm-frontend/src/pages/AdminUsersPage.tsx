@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { useAuth } from "@/auth/useAuth";
 import {
   createUser,
@@ -11,23 +10,6 @@ import {
   type UserSummary,
 } from "@/api/users";
 import { CreateUserDialog } from "@/components/admin/CreateUserDialog";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 
 export function AdminUsersPage() {
   const { session } = useAuth();
@@ -48,9 +30,7 @@ export function AdminUsersPage() {
     }
   }, [session]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   async function handleCreate(payload: CreateUserPayload) {
     if (!session) return;
@@ -59,8 +39,7 @@ export function AdminUsersPage() {
   }
 
   async function handleRoleChange(user: UserSummary, role: "ADMIN" | "AGENTE") {
-    if (!session) return;
-    if (role === user.role) return;
+    if (!session || role === user.role) return;
     setError(null);
     try {
       await updateUserRole(session.token, user.id, role);
@@ -81,105 +60,104 @@ export function AdminUsersPage() {
     }
   }
 
-  return (
-    <div className="container space-y-6 py-10">
-      <Button variant="ghost" size="sm" asChild className="-ml-2">
-        <Link to="/">
-          <ArrowLeft aria-hidden="true" className="mr-2 h-4 w-4" />
-          Volver al panel
-        </Link>
-      </Button>
+  const admins = users.filter((u) => u.role === "ADMIN").length;
+  const agents = users.filter((u) => u.role === "AGENTE" && u.active).length;
 
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">
-            Administración de usuarios
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Alta, edición de rol y baja. Solo accesible para administradores.
-          </p>
+  return (
+    <div className="flex flex-col gap-4 animate-df-fade">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex gap-3.5">
+          <Stat label="Usuarios totales" value={String(users.length)} />
+          <Stat label="Agentes activos" value={String(agents)} />
+          <Stat label="Administradores" value={String(admins)} />
         </div>
         <CreateUserDialog onCreate={handleCreate} />
-      </header>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Usuarios</CardTitle>
-          <CardDescription>
-            {loading ? "Cargando…" : `${users.length} usuarios registrados`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {error && (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          )}
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Usuario</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Rol</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>
-                    <div className="font-medium">{user.username}</div>
-                    <p className="text-xs text-muted-foreground">
-                      {user.fullName}
-                    </p>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {user.email}
-                  </TableCell>
-                  <TableCell>
-                    <select
-                      aria-label={`Rol de ${user.username}`}
-                      value={user.role}
-                      onChange={(e) =>
-                        handleRoleChange(
-                          user,
-                          e.target.value as "ADMIN" | "AGENTE",
-                        )
-                      }
-                      className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-                      data-testid={`role-select-${user.username}`}
-                    >
-                      <option value="AGENTE">AGENTE</option>
-                      <option value="ADMIN">ADMIN</option>
-                    </select>
-                  </TableCell>
-                  <TableCell>
-                    {user.active ? (
-                      <Badge variant="success">Activo</Badge>
-                    ) : (
-                      <Badge variant="secondary">Inactivo</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(user)}
-                      aria-label={`Dar de baja a ${user.username}`}
-                    >
-                      <Trash2
-                        aria-hidden="true"
-                        className="h-4 w-4 text-destructive"
-                      />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {error && (
+        <p role="alert" className="text-sm" style={{ color: "hsl(var(--df-hang))" }}>{error}</p>
+      )}
+
+      <div className="overflow-hidden rounded-[14px] border border-df-border bg-df-surface shadow-[0_1px_2px_rgba(13,37,66,.04)]">
+        <div
+          className="grid gap-2 border-b border-df-border px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-df-text-dim"
+          style={{ gridTemplateColumns: "2fr 1.4fr 1fr 1fr 100px" }}
+        >
+          <span>Usuario</span>
+          <span>Email</span>
+          <span>Rol</span>
+          <span>Estado</span>
+          <span className="text-right">Acciones</span>
+        </div>
+        {loading && (
+          <div className="px-5 py-8 text-center text-[13px] text-df-text-muted">Cargando…</div>
+        )}
+        {!loading && users.map((user) => (
+          <div
+            key={user.id}
+            className="grid gap-2 border-b border-df-border px-5 py-3"
+            style={{ gridTemplateColumns: "2fr 1.4fr 1fr 1fr 100px", alignItems: "center" }}
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <span
+                className="flex h-9 w-9 flex-none items-center justify-center rounded-full text-[12.5px] font-bold text-white"
+                style={{ background: "linear-gradient(140deg,#0f3056,#28c2e2)" }}
+                aria-hidden
+              >
+                {initials(user.username)}
+              </span>
+              <div className="min-w-0">
+                <div className="truncate text-[13.5px] font-bold text-df-text">{user.username}</div>
+                <div className="truncate text-[11.5px] text-df-text-dim">{user.fullName}</div>
+              </div>
+            </div>
+            <span className="truncate text-[12.5px] text-df-text-muted">{user.email}</span>
+            <span>
+              <select
+                aria-label={`Rol de ${user.username}`}
+                value={user.role}
+                onChange={(e) => handleRoleChange(user, e.target.value as "ADMIN" | "AGENTE")}
+                data-testid={`role-select-${user.username}`}
+                className="h-8 rounded-md border border-df-border bg-df-surface-2 px-2 text-[12.5px] font-semibold text-df-text"
+              >
+                <option value="AGENTE">AGENTE</option>
+                <option value="ADMIN">ADMIN</option>
+              </select>
+            </span>
+            <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-df-text-muted">
+              <span
+                className="inline-block h-2 w-2 rounded-full"
+                style={{ background: user.active ? "hsl(var(--df-st-available))" : "hsl(var(--df-st-offline))" }}
+              />
+              {user.active ? "Activo" : "Inactivo"}
+            </span>
+            <div className="flex justify-end gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleDelete(user)}
+                title="Dar de baja"
+                aria-label={`Dar de baja a ${user.username}`}
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-df-border bg-transparent text-df-text-muted hover:text-df-hang"
+              >
+                <Trash2 className="h-3.5 w-3.5" aria-hidden />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-df-border bg-df-surface px-4 py-3 shadow-[0_1px_2px_rgba(13,37,66,.04)]">
+      <div className="text-[11.5px] font-semibold text-df-text-muted">{label}</div>
+      <div className="ff-display mt-0.5 text-[23px] font-bold text-df-text">{value}</div>
+    </div>
+  );
+}
+
+function initials(s: string): string {
+  return s.split(/[\s._-]+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("");
 }

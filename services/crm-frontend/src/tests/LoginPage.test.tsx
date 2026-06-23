@@ -31,7 +31,7 @@ describe("LoginPage", () => {
   it("renderiza form accesible con labels asociados", () => {
     renderApp();
     expect(
-      screen.getByRole("heading", { name: /ucgi · crm/i }),
+      screen.getByRole("heading", { name: /dialflow.*crm/i }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/usuario/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/contraseña/i)).toBeInTheDocument();

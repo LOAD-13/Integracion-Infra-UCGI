@@ -1,13 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
-import {
-  ArrowLeft,
-  Clock,
-  PhoneCall,
-  PhoneMissed,
-  RefreshCw,
-  TrendingUp,
-} from "lucide-react";
+import { Clock, PhoneCall, PhoneMissed, RefreshCw, TrendingUp } from "lucide-react";
 import {
   CartesianGrid,
   Line,
@@ -19,17 +11,8 @@ import {
 } from "recharts";
 import { useAuth } from "@/auth/useAuth";
 import { fetchAgentMetrics, type AgentMetrics } from "@/api/metrics";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 
 interface MetricsPageProps {
-  /** Override del intervalo para tests. */
   autoRefreshMs?: number;
 }
 
@@ -60,168 +43,129 @@ export function MetricsPage({ autoRefreshMs = 60000 }: MetricsPageProps = {}) {
     load();
     if (autoRefreshMs > 0) {
       intervalRef.current = window.setInterval(load, autoRefreshMs);
-      return () => {
-        if (intervalRef.current) window.clearInterval(intervalRef.current);
-      };
+      return () => { if (intervalRef.current) window.clearInterval(intervalRef.current); };
     }
     return undefined;
   }, [load, autoRefreshMs]);
 
-  return (
-    <div className="container space-y-6 py-10">
-      <Button variant="ghost" size="sm" asChild className="-ml-2">
-        <Link to="/">
-          <ArrowLeft aria-hidden="true" className="mr-2 h-4 w-4" />
-          Volver al panel
-        </Link>
-      </Button>
+  const kpis = [
+    {
+      icon: PhoneCall,
+      label: "Llamadas atendidas",
+      value: String(metrics?.answeredCount ?? 0),
+      delta: metrics ? `Día ${metrics.date}` : "",
+      deltaColor: "hsl(var(--df-text-muted))",
+    },
+    {
+      icon: Clock,
+      label: "Duración media",
+      value: metrics ? formatDuration(metrics.averageDurationSeconds) : "—",
+      delta: "promedio del turno",
+      deltaColor: "hsl(var(--df-text-muted))",
+    },
+    {
+      icon: TrendingUp,
+      label: "Tasa de atención",
+      value: metrics ? formatPercent(metrics.answerRate) : "—",
+      delta: metrics && metrics.answerRate >= 0.9 ? "▲ excelente" : "",
+      deltaColor: "hsl(var(--df-call))",
+    },
+    {
+      icon: PhoneMissed,
+      label: "Llamadas perdidas",
+      value: String((metrics?.missedCount ?? 0) + (metrics?.failedCount ?? 0) + (metrics?.busyCount ?? 0)),
+      delta: "",
+      deltaColor: "hsl(var(--df-hang))",
+    },
+  ];
 
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">
-            Métricas del agente
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {metrics
-              ? `Día ${metrics.date} · ${metrics.totalCount} llamadas registradas`
-              : "Cargando…"}
-            {lastUpdatedAt && (
-              <span className="ml-2 text-xs">
-                · actualizado {lastUpdatedAt.toLocaleTimeString("es-PE")}
-              </span>
-            )}
-          </p>
+  return (
+    <div className="flex flex-col gap-5 animate-df-fade">
+      <div className="flex items-center justify-between">
+        <div className="text-[13px] text-df-text-muted">
+          {lastUpdatedAt && <>Actualizado {lastUpdatedAt.toLocaleTimeString("es-PE")}</>}
         </div>
-        <Button
-          variant="outline"
-          size="sm"
+        <button
+          type="button"
           onClick={load}
           disabled={loading}
           data-testid="refresh-metrics"
+          className="flex h-10 items-center gap-1.5 rounded-[10px] border border-df-border bg-df-surface px-3.5 text-[13px] font-semibold text-df-text-muted hover:border-df-border-strong hover:text-df-text disabled:opacity-50"
         >
-          <RefreshCw
-            aria-hidden="true"
-            className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`}
-          />
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} aria-hidden />
           Refrescar
-        </Button>
-      </header>
+        </button>
+      </div>
 
       {error && (
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="text-sm" style={{ color: "hsl(var(--df-hang))" }}>
           {error}
         </p>
       )}
 
       <section
         aria-label="Indicadores clave"
-        className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+        className="grid grid-cols-2 gap-4 lg:grid-cols-4"
       >
-        <KpiCard
-          icon={PhoneCall}
-          label="Llamadas atendidas"
-          value={metrics?.answeredCount ?? 0}
-          accent="text-emerald-700"
-        />
-        <KpiCard
-          icon={Clock}
-          label="Duración media"
-          value={metrics ? formatDuration(metrics.averageDurationSeconds) : "—"}
-        />
-        <KpiCard
-          icon={TrendingUp}
-          label="Tasa de atención"
-          value={metrics ? formatPercent(metrics.answerRate) : "—"}
-        />
-        <KpiCard
-          icon={PhoneMissed}
-          label="Llamadas perdidas"
-          value={
-            (metrics?.missedCount ?? 0) +
-            (metrics?.failedCount ?? 0) +
-            (metrics?.busyCount ?? 0)
-          }
-          accent="text-destructive"
-        />
+        {kpis.map((k) => {
+          const Icon = k.icon;
+          return (
+            <div
+              key={k.label}
+              className="flex flex-col gap-2.5 rounded-[14px] border border-df-border bg-df-surface p-4 shadow-[0_1px_2px_rgba(13,37,66,.04)]"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[12.5px] font-semibold text-df-text-muted">{k.label}</span>
+                <span
+                  className="flex h-8 w-8 items-center justify-center rounded-[9px]"
+                  style={{ background: "hsl(var(--df-navy) / 0.08)", color: "hsl(var(--df-navy))" }}
+                >
+                  <Icon className="h-4 w-4" aria-hidden />
+                </span>
+              </div>
+              <div
+                className="ff-display text-[30px] font-bold leading-none tabular-nums tracking-tight text-df-text"
+                data-testid={`kpi-${k.label.toLowerCase().replace(/[^a-z]+/g, "-")}`}
+              >
+                {k.value}
+              </div>
+              {k.delta && (
+                <div className="text-[12px] font-semibold" style={{ color: k.deltaColor }}>
+                  {k.delta}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Llamadas por hora</CardTitle>
-          <CardDescription>
-            Total vs. atendidas — buckets horarios del día.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div
-            data-testid="metrics-chart"
-            className="h-64 w-full"
-            role="img"
-            aria-label="Gráfico de líneas con llamadas totales y atendidas por hora"
-          >
-            {metrics && (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={metrics.byHour}
-                  margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="hour" tickFormatter={(h) => `${h}h`} />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip
-                    labelFormatter={(label) => `Hora ${label}:00`}
-                    formatter={(value, name) => [
-                      String(value),
-                      name === "total" ? "Totales" : "Atendidas",
-                    ]}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="total"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="answered"
-                    stroke="hsl(142 70% 35%)"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-interface KpiCardProps {
-  icon: typeof PhoneCall;
-  label: string;
-  value: number | string;
-  accent?: string;
-}
-
-function KpiCard({ icon: Icon, label, value, accent }: KpiCardProps) {
-  return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
-          <Icon aria-hidden="true" className="h-4 w-4" />
-          {label}
-        </div>
-        <p
-          className={`mt-2 text-3xl font-semibold tabular-nums ${accent ?? ""}`}
-          data-testid={`kpi-${label.toLowerCase().replace(/[^a-z]+/g, "-")}`}
+      <div className="overflow-hidden rounded-2xl border border-df-border bg-df-surface p-5 shadow-[0_1px_2px_rgba(13,37,66,.04)]">
+        <div className="ff-display mb-1 text-[14.5px] font-bold text-df-text">Llamadas por hora</div>
+        <div className="mb-4 text-[12px] text-df-text-dim">Total vs. atendidas — buckets horarios del día.</div>
+        <div
+          data-testid="metrics-chart"
+          className="h-64 w-full"
+          role="img"
+          aria-label="Gráfico de líneas con llamadas totales y atendidas por hora"
         >
-          {value}
-        </p>
-      </CardContent>
-    </Card>
+          {metrics && (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={metrics.byHour} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--df-border))" />
+                <XAxis dataKey="hour" tickFormatter={(h) => `${h}h`} stroke="hsl(var(--df-text-dim))" />
+                <YAxis allowDecimals={false} stroke="hsl(var(--df-text-dim))" />
+                <Tooltip
+                  labelFormatter={(label) => `Hora ${label}:00`}
+                  formatter={(value, name) => [String(value), name === "total" ? "Totales" : "Atendidas"]}
+                />
+                <Line type="monotone" dataKey="total" stroke="hsl(var(--df-brand))" strokeWidth={2.5} dot={false} />
+                <Line type="monotone" dataKey="answered" stroke="hsl(var(--df-call))" strokeWidth={2.5} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
