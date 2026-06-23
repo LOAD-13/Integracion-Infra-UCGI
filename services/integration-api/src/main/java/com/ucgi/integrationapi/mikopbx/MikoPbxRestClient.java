@@ -73,6 +73,42 @@ public class MikoPbxRestClient {
         return new CreatedEmployee(id, confirmedNumber);
     }
 
+    /**
+     * Crea un employee con los flags WebRTC necesarios para que el CRM pueda
+     * registrarse vía WSS sin reproducir el bug 488 (ver
+     * docs/notas-tecnicas/2026-06-22-bug-crm-488-causa-root-y-fix.md). Los
+     * manualattributes se aplican posteriormente vía SQLite m_Sip — esta
+     * llamada solo crea la entidad base; el bootstrap aplica los attributes
+     * a través del sidecar mikopbx-bootstrap.
+     */
+    public CreatedEmployee createEmployeeWithWebRtc(String number, String displayName, String sipSecret) {
+        return createEmployee(number, displayName, sipSecret);
+    }
+
+    /**
+     * Consulta las llamadas activas en MikoPBX (estado Ringing / Active / Hold).
+     * Endpoint: GET /pbxcore/api/v3/pbx-status:getActiveCalls
+     * (Google-style recurso:verbo).
+     */
+    public List<ActiveCall> getActiveCalls() {
+        JsonNode resp = sendJson("GET", "/pbxcore/api/v3/pbx-status:getActiveCalls", null);
+        if (!resp.path("result").asBoolean(false)) {
+            throw new MikoPbxException("Listar llamadas activas falló: " + resp);
+        }
+        JsonNode data = resp.path("data");
+        List<ActiveCall> calls = new ArrayList<>();
+        if (data.isArray()) {
+            data.forEach(node -> calls.add(new ActiveCall(
+                    node.path("uniqueid").asText(""),
+                    node.path("src").asText(""),
+                    node.path("dst").asText(""),
+                    node.path("state").asText(""),
+                    node.path("start").asLong(0L)
+            )));
+        }
+        return calls;
+    }
+
     public void deleteEmployee(String id) {
         JsonNode resp = sendJson("DELETE", "/pbxcore/api/v3/employees/" + id, null);
         if (!resp.path("result").asBoolean(false)) {
@@ -260,5 +296,8 @@ public class MikoPbxRestClient {
     }
 
     public record CreatedEmployee(String id, String number) {
+    }
+
+    public record ActiveCall(String uniqueId, String src, String dst, String state, long startEpoch) {
     }
 }
