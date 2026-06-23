@@ -8,33 +8,17 @@ import {
   type ListParams,
   type PageResponse,
 } from "@/api/clients";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import {
-  FilterPanel,
-  type ClientFilters,
-} from "@/components/clients/FilterPanel";
 
 const PAGE_SIZE = 20;
-const DEFAULT_FILTERS: ClientFilters = { assignedToMe: false };
+
+type FilterKey = "all" | "active" | "mine";
+
+const FILTERS: Array<{ key: FilterKey; label: string }> = [
+  { key: "all", label: "Todos" },
+  { key: "active", label: "Activos" },
+  { key: "mine", label: "Asignados a mí" },
+];
 
 export function ClientsPage() {
   const { session } = useAuth();
@@ -42,34 +26,29 @@ export function ClientsPage() {
 
   const initialQ = searchParams.get("q") ?? "";
   const initialPage = Number(searchParams.get("page") ?? "0");
-  const initialFilters: ClientFilters = {
-    assignedToMe: searchParams.get("assignedToMe") === "true",
-  };
+  const initialFilter: FilterKey =
+    searchParams.get("assignedToMe") === "true" ? "mine" : "all";
 
   const [searchInput, setSearchInput] = useState(initialQ);
-  const [filters, setFilters] = useState<ClientFilters>(initialFilters);
+  const [filter, setFilter] = useState<FilterKey>(initialFilter);
   const [pageNumber, setPageNumber] = useState(initialPage);
-
   const debouncedSearch = useDebouncedValue(searchInput, 300);
 
   const [page, setPage] = useState<PageResponse<Client> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Sincroniza URL ↔ estado (compartible).
   useEffect(() => {
     const params: Record<string, string> = {};
     if (debouncedSearch.trim()) params.q = debouncedSearch.trim();
-    if (filters.assignedToMe) params.assignedToMe = "true";
+    if (filter === "mine") params.assignedToMe = "true";
     if (pageNumber > 0) params.page = String(pageNumber);
     setSearchParams(params, { replace: true });
-  }, [debouncedSearch, filters, pageNumber, setSearchParams]);
+  }, [debouncedSearch, filter, pageNumber, setSearchParams]);
 
-  // Reset a la página 0 cuando cambian search o filtros (no cuando cambia la
-  // página, obvio — sino loopearía).
   useEffect(() => {
     setPageNumber(0);
-  }, [debouncedSearch, filters.assignedToMe]);
+  }, [debouncedSearch, filter]);
 
   useEffect(() => {
     if (!session) return;
@@ -81,203 +60,199 @@ export function ClientsPage() {
       size: PAGE_SIZE,
       q: debouncedSearch.trim() || undefined,
     };
-    if (filters.assignedToMe) {
-      (params as ListParams & { assignedToMe?: boolean }).assignedToMe = true;
-    }
+    if (filter === "mine") params.assignedToMe = true;
     listClients(session.token, params)
-      .then((data) => {
-        if (!cancelled) setPage(data);
-      })
+      .then((data) => { if (!cancelled) setPage(data); })
       .catch((err) => {
         if (!cancelled)
           setError(err instanceof Error ? err.message : "Error al listar clientes");
       })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [session, pageNumber, debouncedSearch, filters.assignedToMe]);
-
-  function handleClearFilters() {
-    setSearchInput("");
-    setFilters(DEFAULT_FILTERS);
-  }
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [session, pageNumber, debouncedSearch, filter]);
 
   return (
-    <div className="container space-y-6 py-10">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Clientes</h1>
-          <p className="text-sm text-muted-foreground">
-            Cartera del agente · gestiona la información que vas a usar al
-            llamar.
-          </p>
+    <div className="flex flex-col gap-4 animate-df-fade">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex h-10 flex-1 min-w-[240px] items-center gap-2 rounded-[11px] border border-df-border bg-df-surface px-3.5">
+          <Search className="h-4 w-4 text-df-text-dim" aria-hidden />
+          <input
+            type="search"
+            placeholder="Buscar por nombre, número o email…"
+            autoComplete="off"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            aria-label="Buscar clientes"
+            data-testid="client-search"
+            className="flex-1 border-0 bg-transparent text-[13.5px] text-df-text outline-none"
+          />
         </div>
-        <Button asChild>
-          <Link to="/clients/new">
-            <Plus aria-hidden="true" className="mr-2 h-4 w-4" />
-            Nuevo cliente
-          </Link>
-        </Button>
-      </header>
+        <div className="flex gap-1.5">
+          {FILTERS.map((f) => {
+            const active = filter === f.key;
+            return (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setFilter(f.key)}
+                className="h-10 whitespace-nowrap rounded-[10px] px-3.5 text-[13px] font-semibold"
+                style={
+                  active
+                    ? { border: "1px solid hsl(var(--df-navy))", background: "hsl(var(--df-navy) / 0.08)", color: "hsl(var(--df-navy))" }
+                    : { border: "1px solid hsl(var(--df-border))", background: "hsl(var(--df-surface))", color: "hsl(var(--df-text-muted))" }
+                }
+              >
+                {f.label}
+              </button>
+            );
+          })}
+        </div>
+        <Link
+          to="/clients/new"
+          className="flex h-10 items-center gap-1.5 rounded-[10px] border-0 bg-df-navy px-4 text-[13.5px] font-bold text-white hover:brightness-110"
+        >
+          <Plus className="h-4 w-4" aria-hidden />
+          Nuevo cliente
+        </Link>
+      </div>
 
-      <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
-        <FilterPanel
-          filters={filters}
-          onChange={setFilters}
-          onClear={handleClearFilters}
-        />
+      <div className="overflow-hidden rounded-[14px] border border-df-border bg-df-surface shadow-[0_1px_2px_rgba(13,37,66,.04)]">
+        <div
+          className="grid gap-2 border-b border-df-border px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-df-text-dim"
+          style={{ gridTemplateColumns: "2.2fr 1.5fr 1.6fr 1fr 110px" }}
+        >
+          <span>Cliente</span>
+          <span>Teléfono</span>
+          <span>Etiquetas</span>
+          <span>Estado</span>
+          <span className="text-right">Últ. contacto</span>
+        </div>
 
-        <Card>
-          <CardHeader className="space-y-3">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <CardTitle className="text-lg">Listado</CardTitle>
-                <CardDescription>
-                  {page
-                    ? `${page.totalElements} clientes · página ${page.number + 1} de ${page.totalPages || 1}`
-                    : "Cargando…"}
-                </CardDescription>
-              </div>
-              <div className="w-full max-w-sm space-y-1">
-                <Label htmlFor="client-search" className="sr-only">
-                  Buscar clientes
-                </Label>
-                <div className="relative">
-                  <Search
-                    aria-hidden="true"
-                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-                  />
-                  <Input
-                    id="client-search"
-                    type="search"
-                    placeholder="Buscar por nombre, teléfono o empresa…"
-                    autoComplete="off"
-                    value={searchInput}
-                    onChange={(e) => setSearchInput(e.target.value)}
-                    className="pl-9"
-                    data-testid="client-search"
-                  />
+        {error && (
+          <p role="alert" className="border-b border-df-border px-5 py-3 text-sm" style={{ color: "hsl(var(--df-hang))" }}>
+            {error}
+          </p>
+        )}
+
+        {loading &&
+          Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={i}
+              className="grid gap-2 border-b border-df-border px-5 py-3.5"
+              style={{ gridTemplateColumns: "2.2fr 1.5fr 1.6fr 1fr 110px" }}
+            >
+              <div className="flex items-center gap-3">
+                <div className="df-skel h-9 w-9 rounded-full" />
+                <div className="flex-1">
+                  <div className="df-skel mb-1.5 h-3 w-3/5" />
+                  <div className="df-skel h-2.5 w-4/5" />
                 </div>
               </div>
+              <div className="df-skel h-3 w-3/4 self-center" />
+              <div className="df-skel h-4 w-1/2 self-center rounded-md" />
+              <div className="df-skel h-3 w-1/2 self-center" />
+              <div className="df-skel h-3 w-3/4 justify-self-end self-center" />
             </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {error && (
-              <p role="alert" className="text-sm text-destructive">
-                {error}
-              </p>
-            )}
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Teléfono</TableHead>
-                  <TableHead>Empresa</TableHead>
-                  <TableHead>Estado</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={4}
-                      className="text-center text-muted-foreground"
-                    >
-                      Cargando…
-                    </TableCell>
-                  </TableRow>
-                )}
-                {!loading && page?.content.length === 0 && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={4}
-                      className="text-center text-muted-foreground"
-                    >
-                      {debouncedSearch || filters.assignedToMe
-                        ? "No hay resultados para los filtros activos."
-                        : "Todavía no hay clientes en cartera."}
-                    </TableCell>
-                  </TableRow>
-                )}
-                {!loading &&
-                  page?.content.map((client) => (
-                    <TableRow key={client.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar name={client.name} />
-                          <div>
-                            <Link
-                              to={`/clients/${client.id}`}
-                              className="font-medium text-foreground hover:underline"
-                            >
-                              {client.name}
-                            </Link>
-                            {client.email && (
-                              <p className="text-xs text-muted-foreground">
-                                {client.email}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {client.phone}
-                      </TableCell>
-                      <TableCell>{client.company ?? "—"}</TableCell>
-                      <TableCell>
-                        <Badge variant="success">Activo</Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-              </TableBody>
-            </Table>
+          ))}
 
-            {page && page.totalPages > 1 && (
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPageNumber((p) => Math.max(0, p - 1))}
-                  disabled={page.first || loading}
+        {!loading && page?.content.length === 0 && (
+          <div className="flex flex-col items-center gap-3 px-5 py-14 text-center">
+            <span
+              className="flex h-16 w-16 items-center justify-center rounded-2xl"
+              style={{ background: "hsl(var(--df-surface-2))", color: "hsl(var(--df-text-dim))" }}
+            >
+              <Search className="h-7 w-7" />
+            </span>
+            <div className="ff-display text-[15px] font-bold text-df-text">Sin resultados</div>
+            <div className="max-w-[320px] text-[13px] text-df-text-muted">
+              {debouncedSearch
+                ? `No encontramos clientes para "${debouncedSearch}".`
+                : "Todavía no hay clientes en cartera."}
+            </div>
+          </div>
+        )}
+
+        {!loading &&
+          page?.content.map((client) => (
+            <Link
+              key={client.id}
+              to={`/clients/${client.id}`}
+              className="grid gap-2 border-b border-df-border px-5 py-3 transition-colors hover:bg-df-surface-2"
+              style={{ gridTemplateColumns: "2.2fr 1.5fr 1.6fr 1fr 110px", alignItems: "center" }}
+            >
+              <div className="flex min-w-0 items-center gap-3">
+                <span
+                  className="flex h-9 w-9 flex-none items-center justify-center rounded-full text-[12.5px] font-bold text-white"
+                  style={{ background: "linear-gradient(140deg,#0f3056,#28c2e2)" }}
+                  aria-hidden
                 >
-                  Anterior
-                </Button>
-                <span>
-                  Página {page.number + 1} de {page.totalPages}
+                  {initials(client.name)}
                 </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPageNumber((p) => p + 1)}
-                  disabled={page.last || loading}
-                >
-                  Siguiente
-                </Button>
+                <div className="min-w-0">
+                  <div className="truncate text-[13.5px] font-bold text-df-text">{client.name}</div>
+                  {client.email && (
+                    <div className="truncate text-[11.5px] text-df-text-dim">{client.email}</div>
+                  )}
+                </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <span className="ff-mono text-[12.5px] text-df-text-muted">{client.phone}</span>
+              <div className="flex flex-wrap gap-1">
+                {client.tags.slice(0, 3).map((t) => (
+                  <span
+                    key={t.id}
+                    className="rounded-md px-2 py-0.5 text-[11px] font-bold"
+                    style={{ background: t.colorBg, color: t.colorText }}
+                  >
+                    {t.name}
+                  </span>
+                ))}
+              </div>
+              <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-df-text-muted">
+                <span
+                  className="inline-block h-2 w-2 rounded-full"
+                  style={{ background: "hsl(var(--df-st-available))" }}
+                />
+                Activo
+              </span>
+              <span className="text-right text-[12px] text-df-text-dim">
+                {client.updatedAt ? new Date(client.updatedAt).toLocaleDateString() : "—"}
+              </span>
+            </Link>
+          ))}
       </div>
+
+      {page && page.totalPages > 1 && (
+        <div className="flex items-center justify-between text-[12.5px] text-df-text-dim">
+          <span>
+            Mostrando <b className="text-df-text-muted">{page.content.length}</b> de {page.totalElements} clientes
+          </span>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => setPageNumber((p) => Math.max(0, p - 1))}
+              disabled={page.first || loading}
+              className="h-8 rounded-[8px] border border-df-border bg-df-surface px-3 text-[12.5px] text-df-text-muted disabled:opacity-40"
+            >
+              Anterior
+            </button>
+            <span className="ff-mono flex h-8 items-center px-3 text-[12.5px]">
+              Página {page.number + 1} de {page.totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPageNumber((p) => p + 1)}
+              disabled={page.last || loading}
+              className="h-8 rounded-[8px] border border-df-border bg-df-surface px-3 text-[12.5px] text-df-text-muted disabled:opacity-40"
+            >
+              Siguiente
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function Avatar({ name }: { name: string }) {
-  const initials = name
-    .split(/\s+/)
-    .map((part) => part.charAt(0))
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-  return (
-    <span
-      aria-hidden="true"
-      className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary"
-    >
-      {initials || "?"}
-    </span>
-  );
+function initials(name: string): string {
+  return name.split(/\s+/).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("");
 }
