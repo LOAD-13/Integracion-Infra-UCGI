@@ -19,6 +19,7 @@ const TABS: Array<{ key: TabKey; label: string }> = [
 
 export function ClientDetailPage() {
   const { session } = useAuth();
+  const isAdmin = session?.role === "ADMIN";
   const { call } = useSip();
   const navigate = useNavigate();
   const params = useParams<{ id: string }>();
@@ -92,42 +93,46 @@ export function ClientDetailPage() {
               </div>
             )}
           </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => void call(client.phone)}
-              className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-[11px] border-0 text-[13.5px] font-bold text-white hover:brightness-110"
-              style={{ background: "hsl(var(--df-call))" }}
-              aria-label="Llamar al cliente"
-            >
-              <Phone className="h-4 w-4" aria-hidden />
-              Llamar
-            </button>
-            <button
-              type="button"
-              onClick={() => void call(client.phone)}
-              title="Videollamada"
-              aria-label="Videollamada"
-              className="flex h-10 w-12 flex-none items-center justify-center rounded-[11px] border border-df-border bg-df-surface-2 text-df-brand-ink hover:border-df-brand hover:bg-df-brand-soft"
-            >
-              <Video className="h-[18px] w-[18px]" />
-            </button>
-          </div>
+          {!isAdmin && (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => void call(client.phone)}
+                className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-[11px] border-0 text-[13.5px] font-bold text-white hover:brightness-110"
+                style={{ background: "hsl(var(--df-call))" }}
+                aria-label="Llamar al cliente"
+              >
+                <Phone className="h-4 w-4" aria-hidden />
+                Llamar
+              </button>
+              <button
+                type="button"
+                onClick={() => void call(client.phone)}
+                title="Videollamada"
+                aria-label="Videollamada"
+                className="flex h-10 w-12 flex-none items-center justify-center rounded-[11px] border border-df-border bg-df-surface-2 text-df-brand-ink hover:border-df-brand hover:bg-df-brand-soft"
+              >
+                <Video className="h-[18px] w-[18px]" />
+              </button>
+            </div>
+          )}
           <div className="flex flex-col gap-3 border-t border-df-border pt-3">
             <Field icon={Phone} label="Teléfono" value={client.phone} mono />
             <Field icon={Mail} label="Email" value={client.email ?? "—"} />
             <Field icon={MapPin} label="Empresa" value={client.company ?? "—"} />
           </div>
-          <div className="mt-1 flex gap-2 border-t border-df-border pt-3">
-            <Link
-              to={`/clients/${client.id}/edit`}
-              className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-[10px] border border-df-border bg-df-surface-2 text-[12.5px] font-semibold text-df-text-muted hover:border-df-border-strong hover:text-df-text"
-            >
-              <Pencil className="h-3.5 w-3.5" aria-hidden />
-              Editar
-            </Link>
-            <DeleteClientDialog clientName={client.name} onConfirm={handleDelete} />
-          </div>
+          {isAdmin && (
+            <div className="mt-1 flex gap-2 border-t border-df-border pt-3">
+              <Link
+                to={`/clients/${client.id}/edit`}
+                className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-[10px] border border-df-border bg-df-surface-2 text-[12.5px] font-semibold text-df-text-muted hover:border-df-border-strong hover:text-df-text"
+              >
+                <Pencil className="h-3.5 w-3.5" aria-hidden />
+                Editar
+              </Link>
+              <DeleteClientDialog clientName={client.name} onConfirm={handleDelete} />
+            </div>
+          )}
         </div>
 
         {/* Tabs */}

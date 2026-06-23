@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2, Users, X } from "lucide-react";
 import { useAuth } from "@/auth/useAuth";
 import {
+  assignAgentsToSkill,
   createSkill,
   deleteSkill,
   listSkills,
@@ -10,6 +11,7 @@ import {
   type SkillPayload,
   type SkillStrategy,
 } from "@/api/skills";
+import { listUsers, type UserSummary } from "@/api/users";
 import { useToast } from "@/components/toast/useToast";
 
 const STRATEGY_LABEL: Record<SkillStrategy, string> = {
@@ -23,17 +25,40 @@ export function AdminSkillsPage() {
   const { session } = useAuth();
   const { push } = useToast();
   const [skills, setSkills] = useState<Skill[]>([]);
+  const [users, setUsers] = useState<UserSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Skill | null>(null);
   const [creating, setCreating] = useState(false);
+  const [assigning, setAssigning] = useState<Skill | null>(null);
 
   const load = useCallback(async () => {
     if (!session) return;
     setLoading(true);
-    try { setSkills(await listSkills(session.token)); } finally { setLoading(false); }
+    try {
+      const [skillsData, usersData] = await Promise.all([
+        listSkills(session.token),
+        listUsers(session.token).catch(() => []),
+      ]);
+      setSkills(skillsData);
+      setUsers(usersData);
+    } finally {
+      setLoading(false);
+    }
   }, [session]);
 
   useEffect(() => { load(); }, [load]);
+
+  async function handleAssign(skillId: number, userIds: number[]) {
+    if (!session) return;
+    try {
+      await assignAgentsToSkill(session.token, skillId, userIds);
+      push({ title: "Agentes actualizados", kind: "ok" });
+      setAssigning(null);
+      await load();
+    } catch (e) {
+      push({ title: "Error al asignar agentes", desc: (e as Error).message, kind: "warn" });
+    }
+  }
 
   async function handleSave(payload: SkillPayload, id?: number) {
     if (!session) return;
@@ -107,6 +132,11 @@ export function AdminSkillsPage() {
             <span className="ff-mono text-[12.5px] text-df-text-muted">{s.maxWaitSeconds}s</span>
             <span className="ff-mono text-[13px] font-semibold text-df-text">{s.agentCount}</span>
             <div className="flex justify-end gap-1.5">
+              <button type="button" onClick={() => setAssigning(s)} aria-label={`Asignar agentes a ${s.name}`}
+                title="Asignar agentes"
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-df-border text-df-text-muted hover:text-df-brand-ink">
+                <Users className="h-3.5 w-3.5" />
+              </button>
               <button type="button" onClick={() => setEditing(s)} aria-label={`Editar ${s.name}`}
                 className="flex h-8 w-8 items-center justify-center rounded-md border border-df-border text-df-text-muted hover:text-df-text">
                 <Pencil className="h-3.5 w-3.5" />
@@ -128,7 +158,112 @@ export function AdminSkillsPage() {
           onSave={(p) => handleSave(p, editing?.id)}
         />
       )}
+
+      {assigning && (
+        <AssignAgentsDrawer
+          skill={assigning}
+          agents={users.filter((u) => u.role === "AGENTE" && u.active)}
+          onClose={() => setAssigning(null)}
+          onSave={(ids) => handleAssign(assigning.id, ids)}
+        />
+      )}
     </div>
+  );
+}
+
+function AssignAgentsDrawer({
+  skill,
+  agents,
+  onClose,
+  onSave,
+}: {
+  skill: Skill;
+  agents: UserSummary[];
+  onClose: () => void;
+  onSave: (userIds: number[]) => Promise<void> | void;
+}) {
+  const [selected, setSelected] = useState<Set<number>>(new Set(skill.agentIds ?? []));
+  const toggle = (id: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  return (
+    <>
+      <div className="fixed inset-0 z-[42] animate-df-fade" style={{ background: "rgba(8,18,32,.5)" }} onClick={onClose} aria-hidden />
+      <div
+        className="fixed bottom-0 right-0 top-0 z-[43] flex w-[420px] animate-df-slidein flex-col border-l border-df-border bg-df-surface shadow-[0_14px_40px_rgba(13,37,66,.16)]"
+        role="dialog"
+        aria-label={`Asignar agentes a ${skill.name}`}
+      >
+        <div className="flex items-center justify-between border-b border-df-border px-5 py-4">
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-wider text-df-text-dim">Asignar agentes</div>
+            <div className="ff-display text-[16px] font-bold text-df-text">{skill.name}</div>
+          </div>
+          <button onClick={onClose} aria-label="Cerrar" className="flex h-[30px] w-[30px] items-center justify-center rounded-lg border border-df-border text-df-text-muted hover:bg-df-surface-2">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="df-scroll flex-1 overflow-y-auto px-3 py-2">
+          {agents.length === 0 ? (
+            <div className="px-3 py-8 text-center text-[13px] text-df-text-muted">
+              No hay agentes activos para asignar.
+            </div>
+          ) : (
+            agents.map((a) => {
+              const checked = selected.has(a.id);
+              return (
+                <label
+                  key={a.id}
+                  className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-df-surface-2"
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggle(a.id)}
+                    className="h-4 w-4 accent-df-brand"
+                  />
+                  <span
+                    className="flex h-9 w-9 flex-none items-center justify-center rounded-full text-[12.5px] font-bold text-white"
+                    style={{ background: "linear-gradient(140deg,#0f3056,#28c2e2)" }}
+                    aria-hidden
+                  >
+                    {a.username.split(/[\s._-]+/).filter(Boolean).slice(0,2).map(w => w[0]!.toUpperCase()).join("")}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[13px] font-bold text-df-text">{a.fullName}</div>
+                    <div className="truncate text-[11.5px] text-df-text-dim">{a.username}</div>
+                  </div>
+                </label>
+              );
+            })
+          )}
+        </div>
+
+        <div className="flex gap-2.5 border-t border-df-border px-5 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 h-10 rounded-[10px] border border-df-border bg-transparent text-[13px] font-semibold text-df-text-muted"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => void onSave(Array.from(selected))}
+            className="flex-1 h-10 rounded-[10px] border-0 bg-df-navy text-[13px] font-bold text-white hover:brightness-110"
+          >
+            Guardar ({selected.size})
+          </button>
+        </div>
+      </div>
+    </>
   );
 }
 

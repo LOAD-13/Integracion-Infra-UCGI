@@ -8,6 +8,7 @@ import {
   updateClient,
   type Client,
 } from "@/api/clients";
+import { listClientTags, type ClientTag } from "@/api/clientTags";
 import { ClientForm } from "@/components/clients/ClientForm";
 import {
   emptyClient,
@@ -33,9 +34,20 @@ export function ClientFormPage({ mode }: ClientFormPageProps) {
   const id = mode === "edit" ? Number(params.id) : null;
 
   const [defaults, setDefaults] = useState<ClientFormValues>(emptyClient);
+  const [tags, setTags] = useState<ClientTag[]>([]);
   const [loading, setLoading] = useState(mode === "edit");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Carga catálogo de tags.
+  useEffect(() => {
+    if (!session) return;
+    let cancelled = false;
+    listClientTags(session.token)
+      .then((r) => { if (!cancelled) setTags(r); })
+      .catch(() => { /* tags es opcional para crear */ });
+    return () => { cancelled = true; };
+  }, [session]);
 
   useEffect(() => {
     if (mode !== "edit" || !session || id === null || Number.isNaN(id)) return;
@@ -97,7 +109,7 @@ export function ClientFormPage({ mode }: ClientFormPageProps) {
           <CardTitle>{title}</CardTitle>
           <CardDescription>
             {mode === "create"
-              ? "Completá los datos para crear un cliente nuevo en tu cartera."
+              ? "Completá los datos del cliente. El teléfono es el número público al que llamamos (no la extensión interna)."
               : "Editá la ficha del cliente."}
           </CardDescription>
         </CardHeader>
@@ -110,6 +122,7 @@ export function ClientFormPage({ mode }: ClientFormPageProps) {
               submitLabel={submitLabel}
               submitting={submitting}
               errorMessage={error}
+              availableTags={tags}
               onSubmit={handleSubmit}
               onCancel={() => navigate(-1)}
             />
@@ -127,5 +140,6 @@ function toFormValues(client: Client): ClientFormValues {
     email: client.email ?? "",
     company: client.company ?? "",
     notesSummary: client.notesSummary ?? "",
+    tagIds: client.tags.map((t) => t.id),
   };
 }

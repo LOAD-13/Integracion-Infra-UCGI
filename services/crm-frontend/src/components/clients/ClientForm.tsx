@@ -6,6 +6,7 @@ import {
   emptyClient,
   type ClientFormValues,
 } from "@/clients/client-schema";
+import type { ClientTag } from "@/api/clientTags";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +17,7 @@ interface ClientFormProps {
   submitLabel: string;
   submitting?: boolean;
   errorMessage?: string | null;
+  availableTags?: ClientTag[];
   onSubmit: (values: ClientFormValues) => Promise<void> | void;
   onCancel?: () => void;
 }
@@ -25,18 +27,29 @@ export function ClientForm({
   submitLabel,
   submitting = false,
   errorMessage = null,
+  availableTags = [],
   onSubmit,
   onCancel,
 }: ClientFormProps) {
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<ClientFormValues>({
     resolver: zodResolver(clientSchema),
     defaultValues,
     mode: "onBlur",
   });
+
+  const selectedTagIds = watch("tagIds") ?? [];
+  const toggleTag = (tagId: number) => {
+    const set = new Set(selectedTagIds);
+    if (set.has(tagId)) set.delete(tagId);
+    else set.add(tagId);
+    setValue("tagIds", Array.from(set), { shouldDirty: true });
+  };
 
   const busy = submitting || isSubmitting;
 
@@ -96,6 +109,33 @@ export function ClientForm({
           {...register("notesSummary")}
         />
       </Field>
+
+      {availableTags.length > 0 && (
+        <div className="space-y-1.5">
+          <Label>Etiquetas</Label>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Etiquetas del cliente">
+            {availableTags.map((t) => {
+              const selected = selectedTagIds.includes(t.id);
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => toggleTag(t.id)}
+                  aria-pressed={selected}
+                  className="rounded-md px-2.5 py-1 text-[12px] font-bold transition"
+                  style={
+                    selected
+                      ? { background: t.colorBg, color: t.colorText, border: `1px solid ${t.colorText}` }
+                      : { background: "hsl(var(--df-surface-2))", color: "hsl(var(--df-text-muted))", border: "1px solid hsl(var(--df-border))" }
+                  }
+                >
+                  {t.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {errorMessage && (
         <div
