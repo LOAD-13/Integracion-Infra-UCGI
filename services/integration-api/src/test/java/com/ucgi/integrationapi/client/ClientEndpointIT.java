@@ -73,7 +73,7 @@ class ClientEndpointIT extends AbstractIntegrationTest {
         String token = loginAndExtractToken();
         String createBody = mapper.writeValueAsString(new ClientRequest(
                 "Cliente Test", "+5199998888", "test@example.com",
-                "Empresa Test", "Notas iniciales"));
+                "Empresa Test", "Notas iniciales", null));
 
         MvcResult created = mockMvc.perform(post("/api/v1/clients")
                         .header("Authorization", "Bearer " + token)
@@ -93,7 +93,7 @@ class ClientEndpointIT extends AbstractIntegrationTest {
 
         String updateBody = mapper.writeValueAsString(new ClientRequest(
                 "Cliente Actualizado", "+5199998877", "updated@example.com",
-                "Empresa Actualizada", null));
+                "Empresa Actualizada", null, null));
         mockMvc.perform(put("/api/v1/clients/" + id)
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
