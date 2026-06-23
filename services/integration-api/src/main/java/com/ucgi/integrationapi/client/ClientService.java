@@ -1,7 +1,10 @@
 package com.ucgi.integrationapi.client;
 
 import com.ucgi.integrationapi.error.ResourceNotFoundException;
+import com.ucgi.integrationapi.tag.ClientTagResponse;
+import com.ucgi.integrationapi.tag.ClientTagService;
 import com.ucgi.integrationapi.user.UserRepository;
+import java.util.Set;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -12,16 +15,20 @@ public class ClientService {
 
     private final ClientRepository repository;
     private final UserRepository userRepository;
+    private final ClientTagService tagService;
 
-    public ClientService(ClientRepository repository, UserRepository userRepository) {
+    public ClientService(ClientRepository repository, UserRepository userRepository,
+                         ClientTagService tagService) {
         this.repository = repository;
         this.userRepository = userRepository;
+        this.tagService = tagService;
     }
 
     @Transactional(readOnly = true)
     public Page<ClientResponse> search(String q, Long agentUserId, Pageable pageable) {
         String trimmed = (q == null || q.isBlank()) ? null : q.trim();
-        return repository.search(trimmed, agentUserId, pageable).map(ClientResponse::from);
+        return repository.search(trimmed, agentUserId, pageable)
+                .map(c -> ClientResponse.from(c, tagService.forClient(c.getId())));
     }
 
     @Transactional(readOnly = true)
@@ -34,7 +41,23 @@ public class ClientService {
 
     @Transactional(readOnly = true)
     public ClientResponse findById(Long id) {
-        return ClientResponse.from(get(id));
+        Client client = get(id);
+        return ClientResponse.from(client, tagService.forClient(client.getId()));
+    }
+
+    /**
+     * Match heuristico para CTI: si el caller-id matchea exactamente un cliente
+     * por su phone, devuelve la respuesta enriquecida con tags. Si no, vacio.
+     */
+    @Transactional(readOnly = true)
+    public java.util.Optional<ClientResponse> findByPhone(String phone) {
+        if (phone == null || phone.isBlank()) return java.util.Optional.empty();
+        String normalized = phone.replaceAll("\\D", "");
+        if (normalized.length() < 6) return java.util.Optional.empty();
+        return repository.search(normalized.substring(Math.max(0, normalized.length() - 8)),
+                        null, org.springframework.data.domain.PageRequest.of(0, 1))
+                .stream().findFirst()
+                .map(c -> ClientResponse.from(c, tagService.forClient(c.getId())));
     }
 
     @Transactional
@@ -42,7 +65,9 @@ public class ClientService {
         Client client = new Client(req.name(), req.phone(),
                 blankToNull(req.email()), blankToNull(req.company()),
                 blankToNull(req.notesSummary()));
-        return ClientResponse.from(repository.save(client));
+        Client saved = repository.save(client);
+        applyTags(saved.getId(), req.tagIds());
+        return ClientResponse.from(saved, tagService.forClient(saved.getId()));
     }
 
     @Transactional
@@ -53,7 +78,14 @@ public class ClientService {
         client.setEmail(blankToNull(req.email()));
         client.setCompany(blankToNull(req.company()));
         client.setNotesSummary(blankToNull(req.notesSummary()));
-        return ClientResponse.from(repository.save(client));
+        Client saved = repository.save(client);
+        applyTags(saved.getId(), req.tagIds());
+        return ClientResponse.from(saved, tagService.forClient(saved.getId()));
+    }
+
+    private void applyTags(Long clientId, Set<Long> tagIds) {
+        if (tagIds == null) return;
+        tagService.replaceTagsForClient(clientId, tagIds);
     }
 
     @Transactional

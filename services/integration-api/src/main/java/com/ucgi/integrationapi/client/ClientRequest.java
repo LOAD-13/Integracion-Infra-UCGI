@@ -9,11 +9,14 @@ import jakarta.validation.constraints.Size;
  * formulario muestra (RHF + Zod). El backend solo valida que los campos
  * obligatorios estén presentes y que el email tenga formato correcto si viaja.
  */
+import java.util.Set;
+
 public record ClientRequest(
         @NotBlank @Size(max = 255) String name,
         @NotBlank @Size(max = 32) String phone,
         @Email @Size(max = 255) String email,
         @Size(max = 255) String company,
-        String notesSummary
+        String notesSummary,
+        Set<Long> tagIds
 ) {
 }
