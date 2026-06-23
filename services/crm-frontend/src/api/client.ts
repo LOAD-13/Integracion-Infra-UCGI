@@ -21,6 +21,7 @@ export interface LoginResponse {
   expiresIn: number;
   username: string;
   role: string;
+  mustChangePassword?: boolean;
 }
 
 export async function parseError(response: Response): Promise<ApiError> {
@@ -47,7 +48,14 @@ export async function login(payload: LoginRequest): Promise<LoginResponse> {
   return (await response.json()) as LoginResponse;
 }
 
-export function authorizedFetch(
+type UnauthorizedHandler = () => void;
+let unauthorizedHandler: UnauthorizedHandler | null = null;
+
+export function registerUnauthorizedHandler(handler: UnauthorizedHandler | null) {
+  unauthorizedHandler = handler;
+}
+
+export async function authorizedFetch(
   token: string,
   path: string,
   init: RequestInit = {},
@@ -57,7 +65,11 @@ export function authorizedFetch(
   if (init.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
-  return fetch(`${API_BASE}${path}`, { ...init, headers });
+  const response = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  if (response.status === 401 && unauthorizedHandler) {
+    unauthorizedHandler();
+  }
+  return response;
 }
 
 export interface SipCredentialsResponse {

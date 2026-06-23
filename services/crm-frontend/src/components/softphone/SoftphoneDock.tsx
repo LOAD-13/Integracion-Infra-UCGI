@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useSip } from "@/sip/useSip";
 import { cn } from "@/lib/utils";
+import { useDialer } from "./dialer-context";
 
 /**
  * SoftphoneDock — barra persistente abajo de la app con 3 estados:
@@ -92,6 +93,7 @@ export function SoftphoneDock() {
 }
 
 function IdleRow({ registered }: { registered: boolean }) {
+  const { openDialer } = useDialer();
   return (
     <div className="flex h-16 items-center gap-4 px-5">
       <div className="flex items-center gap-3">
@@ -116,6 +118,7 @@ function IdleRow({ registered }: { registered: boolean }) {
       <div className="ml-auto flex items-center gap-2.5">
         <button
           type="button"
+          onClick={openDialer}
           disabled={!registered}
           className="flex h-10 items-center gap-2 rounded-[11px] border border-df-border bg-df-surface-2 px-4 text-[13px] font-semibold text-df-text hover:border-df-call disabled:opacity-60"
           aria-label="Abrir marcador"

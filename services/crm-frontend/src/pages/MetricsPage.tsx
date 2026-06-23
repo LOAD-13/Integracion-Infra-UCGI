@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Clock, PhoneCall, PhoneMissed, RefreshCw, TrendingUp } from "lucide-react";
+import { Activity, Clock, PhoneCall, PhoneMissed, RefreshCw, TrendingUp, Users } from "lucide-react";
 import {
   CartesianGrid,
   Line,
@@ -10,7 +10,13 @@ import {
   YAxis,
 } from "recharts";
 import { useAuth } from "@/auth/useAuth";
-import { fetchAgentMetrics, type AgentMetrics } from "@/api/metrics";
+import {
+  fetchAdminMetrics,
+  fetchAgentMetrics,
+  type AdminMetrics,
+  type AgentMetrics,
+  type HourlyBucket,
+} from "@/api/metrics";
 
 interface MetricsPageProps {
   autoRefreshMs?: number;
@@ -18,7 +24,9 @@ interface MetricsPageProps {
 
 export function MetricsPage({ autoRefreshMs = 60000 }: MetricsPageProps = {}) {
   const { session } = useAuth();
-  const [metrics, setMetrics] = useState<AgentMetrics | null>(null);
+  const isAdmin = session?.role === "ADMIN";
+  const [agentMetrics, setAgentMetrics] = useState<AgentMetrics | null>(null);
+  const [adminMetrics, setAdminMetrics] = useState<AdminMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
@@ -29,15 +37,20 @@ export function MetricsPage({ autoRefreshMs = 60000 }: MetricsPageProps = {}) {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchAgentMetrics(session.token);
-      setMetrics(data);
+      if (isAdmin) {
+        const data = await fetchAdminMetrics(session.token);
+        setAdminMetrics(data);
+      } else {
+        const data = await fetchAgentMetrics(session.token);
+        setAgentMetrics(data);
+      }
       setLastUpdatedAt(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al cargar métricas");
     } finally {
       setLoading(false);
     }
-  }, [session]);
+  }, [session, isAdmin]);
 
   useEffect(() => {
     load();
@@ -48,6 +61,114 @@ export function MetricsPage({ autoRefreshMs = 60000 }: MetricsPageProps = {}) {
     return undefined;
   }, [load, autoRefreshMs]);
 
+  const byHour: HourlyBucket[] = isAdmin
+    ? adminMetrics?.byHour ?? []
+    : agentMetrics?.byHour ?? [];
+
+  return (
+    <div className="flex flex-col gap-5 animate-df-fade">
+      <div className="flex items-center justify-between">
+        <div className="text-[13px] text-df-text-muted">
+          {lastUpdatedAt && <>Actualizado {lastUpdatedAt.toLocaleTimeString("es-PE")}</>}
+        </div>
+        <button
+          type="button"
+          onClick={load}
+          disabled={loading}
+          data-testid="refresh-metrics"
+          className="flex h-10 items-center gap-1.5 rounded-[10px] border border-df-border bg-df-surface px-3.5 text-[13px] font-semibold text-df-text-muted hover:border-df-border-strong hover:text-df-text disabled:opacity-50"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} aria-hidden />
+          Refrescar
+        </button>
+      </div>
+
+      {error && (
+        <p role="alert" className="text-sm" style={{ color: "hsl(var(--df-hang))" }}>
+          {error}
+        </p>
+      )}
+
+      {isAdmin ? (
+        <AdminKpis metrics={adminMetrics} />
+      ) : (
+        <AgentKpis metrics={agentMetrics} />
+      )}
+
+      <div className="overflow-hidden rounded-2xl border border-df-border bg-df-surface p-5 shadow-[0_1px_2px_rgba(13,37,66,.04)]">
+        <div className="ff-display mb-1 text-[14.5px] font-bold text-df-text">
+          {isAdmin ? "Llamadas globales por hora" : "Llamadas por hora"}
+        </div>
+        <div className="mb-4 text-[12px] text-df-text-dim">Total vs. atendidas — buckets horarios del día.</div>
+        <div
+          data-testid="metrics-chart"
+          className="h-64 w-full"
+          role="img"
+          aria-label="Gráfico de líneas con llamadas totales y atendidas por hora"
+        >
+          {byHour.length > 0 && (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={byHour} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--df-border))" />
+                <XAxis dataKey="hour" tickFormatter={(h) => `${h}h`} stroke="hsl(var(--df-text-dim))" />
+                <YAxis allowDecimals={false} stroke="hsl(var(--df-text-dim))" />
+                <Tooltip
+                  labelFormatter={(label) => `Hora ${label}:00`}
+                  formatter={(value, name) => [String(value), name === "total" ? "Totales" : "Atendidas"]}
+                />
+                <Line type="monotone" dataKey="total" stroke="hsl(var(--df-brand))" strokeWidth={2.5} dot={false} />
+                <Line type="monotone" dataKey="answered" stroke="hsl(var(--df-call))" strokeWidth={2.5} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+
+      {isAdmin && adminMetrics && (
+        <div className="overflow-hidden rounded-2xl border border-df-border bg-df-surface shadow-[0_1px_2px_rgba(13,37,66,.04)]">
+          <div className="border-b border-df-border px-5 py-4">
+            <div className="ff-display text-[14.5px] font-bold text-df-text">Ranking de agentes</div>
+            <div className="text-[12px] text-df-text-dim">Top 5 por volumen del día — útil para coaching.</div>
+          </div>
+          {adminMetrics.topAgents.length === 0 ? (
+            <div className="px-5 py-8 text-center text-[13px] text-df-text-muted">
+              Sin actividad de agentes hoy.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-df-border text-[11px] font-bold uppercase tracking-wider text-df-text-dim">
+                    <th className="px-5 py-3 text-left">Agente</th>
+                    <th className="px-5 py-3 text-right">Llamadas</th>
+                    <th className="px-5 py-3 text-right">Atendidas</th>
+                    <th className="px-5 py-3 text-right">TMO</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adminMetrics.topAgents.map((a) => (
+                    <tr key={a.username} className="border-b border-df-border last:border-0">
+                      <td className="px-5 py-3 text-[13px] font-semibold text-df-text">
+                        {a.fullName} <span className="text-df-text-dim">· {a.username}</span>
+                      </td>
+                      <td className="ff-mono px-5 py-3 text-right text-[13px] text-df-text-muted">{a.totalCalls}</td>
+                      <td className="ff-mono px-5 py-3 text-right text-[13px] text-df-text-muted">{a.answeredCalls}</td>
+                      <td className="ff-mono px-5 py-3 text-right text-[13px] text-df-text-muted">
+                        {formatDuration(a.averageHandleSeconds)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AgentKpis({ metrics }: { metrics: AgentMetrics | null }) {
   const kpis = [
     {
       icon: PhoneCall,
@@ -78,94 +199,81 @@ export function MetricsPage({ autoRefreshMs = 60000 }: MetricsPageProps = {}) {
       deltaColor: "hsl(var(--df-hang))",
     },
   ];
+  return <KpiGrid kpis={kpis} />;
+}
 
+function AdminKpis({ metrics }: { metrics: AdminMetrics | null }) {
+  const kpis = [
+    {
+      icon: PhoneCall,
+      label: "Llamadas globales",
+      value: String(metrics?.totalCalls ?? 0),
+      delta: metrics ? `Día ${metrics.date}` : "",
+      deltaColor: "hsl(var(--df-text-muted))",
+    },
+    {
+      icon: TrendingUp,
+      label: "Tasa global",
+      value: metrics ? formatPercent(metrics.answerRate) : "—",
+      delta: `${metrics?.answeredCalls ?? 0} atendidas`,
+      deltaColor: "hsl(var(--df-text-muted))",
+    },
+    {
+      icon: Users,
+      label: "Agentes disponibles",
+      value: `${metrics?.activeAgents ?? 0} / ${metrics?.totalAgents ?? 0}`,
+      delta: "en estado AVAILABLE",
+      deltaColor: "hsl(var(--df-text-muted))",
+    },
+    {
+      icon: Activity,
+      label: "TMO promedio",
+      value: metrics ? formatDuration(metrics.averageHandleSeconds) : "—",
+      delta: "tiempo medio operación",
+      deltaColor: "hsl(var(--df-text-muted))",
+    },
+  ];
+  return <KpiGrid kpis={kpis} />;
+}
+
+function KpiGrid({
+  kpis,
+}: {
+  kpis: Array<{ icon: typeof PhoneCall; label: string; value: string; delta: string; deltaColor: string }>;
+}) {
   return (
-    <div className="flex flex-col gap-5 animate-df-fade">
-      <div className="flex items-center justify-between">
-        <div className="text-[13px] text-df-text-muted">
-          {lastUpdatedAt && <>Actualizado {lastUpdatedAt.toLocaleTimeString("es-PE")}</>}
-        </div>
-        <button
-          type="button"
-          onClick={load}
-          disabled={loading}
-          data-testid="refresh-metrics"
-          className="flex h-10 items-center gap-1.5 rounded-[10px] border border-df-border bg-df-surface px-3.5 text-[13px] font-semibold text-df-text-muted hover:border-df-border-strong hover:text-df-text disabled:opacity-50"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} aria-hidden />
-          Refrescar
-        </button>
-      </div>
-
-      {error && (
-        <p role="alert" className="text-sm" style={{ color: "hsl(var(--df-hang))" }}>
-          {error}
-        </p>
-      )}
-
-      <section
-        aria-label="Indicadores clave"
-        className="grid grid-cols-2 gap-4 lg:grid-cols-4"
-      >
-        {kpis.map((k) => {
-          const Icon = k.icon;
-          return (
-            <div
-              key={k.label}
-              className="flex flex-col gap-2.5 rounded-[14px] border border-df-border bg-df-surface p-4 shadow-[0_1px_2px_rgba(13,37,66,.04)]"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[12.5px] font-semibold text-df-text-muted">{k.label}</span>
-                <span
-                  className="flex h-8 w-8 items-center justify-center rounded-[9px]"
-                  style={{ background: "hsl(var(--df-navy) / 0.08)", color: "hsl(var(--df-navy))" }}
-                >
-                  <Icon className="h-4 w-4" aria-hidden />
-                </span>
-              </div>
-              <div
-                className="ff-display text-[30px] font-bold leading-none tabular-nums tracking-tight text-df-text"
-                data-testid={`kpi-${k.label.toLowerCase().replace(/[^a-z]+/g, "-")}`}
+    <section aria-label="Indicadores clave" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      {kpis.map((k) => {
+        const Icon = k.icon;
+        return (
+          <div
+            key={k.label}
+            className="flex flex-col gap-2.5 rounded-[14px] border border-df-border bg-df-surface p-4 shadow-[0_1px_2px_rgba(13,37,66,.04)]"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[12.5px] font-semibold text-df-text-muted">{k.label}</span>
+              <span
+                className="flex h-8 w-8 items-center justify-center rounded-[9px]"
+                style={{ background: "hsl(var(--df-navy) / 0.08)", color: "hsl(var(--df-navy))" }}
               >
-                {k.value}
-              </div>
-              {k.delta && (
-                <div className="text-[12px] font-semibold" style={{ color: k.deltaColor }}>
-                  {k.delta}
-                </div>
-              )}
+                <Icon className="h-4 w-4" aria-hidden />
+              </span>
             </div>
-          );
-        })}
-      </section>
-
-      <div className="overflow-hidden rounded-2xl border border-df-border bg-df-surface p-5 shadow-[0_1px_2px_rgba(13,37,66,.04)]">
-        <div className="ff-display mb-1 text-[14.5px] font-bold text-df-text">Llamadas por hora</div>
-        <div className="mb-4 text-[12px] text-df-text-dim">Total vs. atendidas — buckets horarios del día.</div>
-        <div
-          data-testid="metrics-chart"
-          className="h-64 w-full"
-          role="img"
-          aria-label="Gráfico de líneas con llamadas totales y atendidas por hora"
-        >
-          {metrics && (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={metrics.byHour} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--df-border))" />
-                <XAxis dataKey="hour" tickFormatter={(h) => `${h}h`} stroke="hsl(var(--df-text-dim))" />
-                <YAxis allowDecimals={false} stroke="hsl(var(--df-text-dim))" />
-                <Tooltip
-                  labelFormatter={(label) => `Hora ${label}:00`}
-                  formatter={(value, name) => [String(value), name === "total" ? "Totales" : "Atendidas"]}
-                />
-                <Line type="monotone" dataKey="total" stroke="hsl(var(--df-brand))" strokeWidth={2.5} dot={false} />
-                <Line type="monotone" dataKey="answered" stroke="hsl(var(--df-call))" strokeWidth={2.5} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      </div>
-    </div>
+            <div
+              className="ff-display text-[30px] font-bold leading-none tabular-nums tracking-tight text-df-text"
+              data-testid={`kpi-${k.label.toLowerCase().replace(/[^a-z]+/g, "-")}`}
+            >
+              {k.value}
+            </div>
+            {k.delta && (
+              <div className="text-[12px] font-semibold" style={{ color: k.deltaColor }}>
+                {k.delta}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </section>
   );
 }
 

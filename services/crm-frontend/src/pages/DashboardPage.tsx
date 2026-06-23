@@ -1,17 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   CheckCircle2,
   Clock,
-  FileEdit,
   Phone,
   PhoneIncoming,
+  PhoneMissed,
   Smartphone,
   Users,
-  Video,
 } from "lucide-react";
 import { useAuth } from "@/auth/useAuth";
 import { listIncomingQueue, type QueueEntry } from "@/api/queue";
+import { fetchAgentMetrics, type AgentMetrics } from "@/api/metrics";
+import { listRecentActivity, type RecentActivity } from "@/api/recentActivity";
+import { useDialer } from "@/components/softphone/dialer-context";
 
 const KPI_ICON: Record<string, typeof Phone> = {
   calls: Phone,
@@ -26,10 +28,34 @@ const PRIO_COLOR: Record<string, string> = {
   baja: "hsl(var(--df-st-offline))",
 };
 
+function formatDuration(seconds: number): string {
+  if (!seconds || seconds <= 0) return "0:00";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function formatRelative(iso: string): string {
+  const then = new Date(iso).getTime();
+  const diff = Date.now() - then;
+  if (Number.isNaN(then) || diff < 0) return "Ahora";
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "Hace menos de 1 min";
+  if (min < 60) return `Hace ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `Hace ${h} h`;
+  const d = Math.floor(h / 24);
+  return `Hace ${d} d`;
+}
+
 export function DashboardPage() {
   const { session } = useAuth();
+  const { openDialer } = useDialer();
   const [queue, setQueue] = useState<QueueEntry[]>([]);
+  const [metrics, setMetrics] = useState<AgentMetrics | null>(null);
+  const [recent, setRecent] = useState<RecentActivity[]>([]);
 
+  // Poll cola entrante.
   useEffect(() => {
     if (!session) return;
     let cancelled = false;
@@ -43,12 +69,58 @@ export function DashboardPage() {
     return () => { cancelled = true; window.clearInterval(id); };
   }, [session]);
 
-  const kpis = [
-    { key: "calls", label: "Llamadas hoy", value: "47", delta: "▲ 12% vs ayer", deltaColor: "hsl(var(--df-call))" },
-    { key: "duration", label: "Duración prom.", value: "4:38", delta: "▼ 22s vs ayer", deltaColor: "hsl(var(--df-call))" },
-    { key: "rate", label: "Tasa contestación", value: "92%", delta: "▲ 3 pts", deltaColor: "hsl(var(--df-call))" },
-    { key: "queue", label: "En cola ahora", value: String(queue.length), delta: "tiempo prom. 1:04", deltaColor: "hsl(var(--df-text-muted))" },
-  ];
+  // Métricas + actividad reciente cada 60s.
+  useEffect(() => {
+    if (!session) return;
+    let cancelled = false;
+    const tick = () => {
+      fetchAgentMetrics(session.token)
+        .then((m) => { if (!cancelled) setMetrics(m); })
+        .catch(() => { /* silencioso */ });
+      listRecentActivity(session.token)
+        .then((rows) => { if (!cancelled) setRecent(rows); })
+        .catch(() => { /* silencioso */ });
+    };
+    tick();
+    const id = window.setInterval(tick, 60000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, [session]);
+
+  const kpis = useMemo(() => {
+    const total = metrics?.totalCount ?? 0;
+    const avg = metrics?.averageDurationSeconds ?? 0;
+    const rate = metrics?.answerRate ?? 0;
+    return [
+      {
+        key: "calls",
+        label: "Llamadas hoy",
+        value: String(total),
+        hint: total > 0 ? `${metrics?.answeredCount ?? 0} atendidas` : "Sin actividad del día",
+        hintColor: "hsl(var(--df-text-muted))",
+      },
+      {
+        key: "duration",
+        label: "Duración prom.",
+        value: formatDuration(avg),
+        hint: total > 0 ? "Promedio del turno" : "Sin datos",
+        hintColor: "hsl(var(--df-text-muted))",
+      },
+      {
+        key: "rate",
+        label: "Tasa contestación",
+        value: total > 0 ? `${Math.round(rate * 100)}%` : "—",
+        hint: `${metrics?.missedCount ?? 0} sin atender`,
+        hintColor: "hsl(var(--df-text-muted))",
+      },
+      {
+        key: "queue",
+        label: "En cola ahora",
+        value: String(queue.length),
+        hint: queue.length === 0 ? "Sin esperas" : "Tomar llamada disponible",
+        hintColor: "hsl(var(--df-text-muted))",
+      },
+    ];
+  }, [metrics, queue.length]);
 
   return (
     <div className="flex flex-col gap-5 animate-df-fade">
@@ -72,8 +144,8 @@ export function DashboardPage() {
               <div className="ff-display text-[30px] font-bold leading-none tracking-tight text-df-text">
                 {k.value}
               </div>
-              <div className="text-[12px] font-semibold" style={{ color: k.deltaColor }}>
-                {k.delta}
+              <div className="text-[12px] font-semibold" style={{ color: k.hintColor }}>
+                {k.hint}
               </div>
             </div>
           );
@@ -128,9 +200,19 @@ export function DashboardPage() {
         <div className="flex flex-col gap-5">
           <Card title="Acciones rápidas">
             <div className="grid grid-cols-2 gap-3 p-4">
-              <QuickAction icon={Smartphone} label="Marcar número" hint="Ctrl+D" />
-              <QuickAction icon={Video} label="Videollamada" />
-              <QuickAction icon={PhoneIncoming} label="Simular entrante" />
+              <button
+                type="button"
+                onClick={() => openDialer()}
+                className="flex flex-col gap-2 rounded-[12px] border border-df-border bg-df-surface-2 p-3.5 text-left hover:border-df-brand hover:bg-df-brand-soft"
+              >
+                <Smartphone className="h-5 w-5" style={{ color: "hsl(var(--df-navy))" }} aria-hidden />
+                <span className="flex items-center justify-between gap-2">
+                  <span className="text-[13px] font-bold text-df-text">Marcar número</span>
+                  <kbd className="ff-mono rounded border border-df-border bg-df-surface px-1.5 py-0.5 text-[10px] text-df-text-muted">
+                    Ctrl+D
+                  </kbd>
+                </span>
+              </button>
               <Link
                 to="/clients"
                 className="flex flex-col gap-2 rounded-[12px] border border-df-border bg-df-surface-2 p-3.5 text-left hover:border-df-brand hover:bg-df-brand-soft"
@@ -142,27 +224,21 @@ export function DashboardPage() {
           </Card>
 
           <Card title="Actividad reciente">
-            <RecentRow
-              icon={CheckCircle2}
-              tone="call"
-              text="Llamada con cliente"
-              time="Hace 12 min · resuelto"
-              meta="04:12"
-            />
-            <RecentRow
-              icon={FileEdit}
-              tone="brand"
-              text="Nota guardada"
-              time="Hace 40 min"
-              meta=""
-            />
-            <RecentRow
-              icon={Video}
-              tone="brand"
-              text="Videollamada finalizada"
-              time="Hace 1 h · venta cerrada"
-              meta="12:31"
-            />
+            {recent.length === 0 && (
+              <div className="px-5 py-8 text-center text-[13px] text-df-text-muted">
+                Sin actividad reciente.
+              </div>
+            )}
+            {recent.map((r, i) => (
+              <RecentRow
+                key={`${r.occurredAt}-${i}`}
+                kind={r.kind}
+                title={r.title}
+                subtitle={r.subtitle}
+                time={formatRelative(r.occurredAt)}
+                meta={r.meta}
+              />
+            ))}
           </Card>
         </div>
       </div>
@@ -216,52 +292,36 @@ function Card({
   );
 }
 
-function QuickAction({ icon: Icon, label, hint }: { icon: typeof Phone; label: string; hint?: string }) {
-  return (
-    <button
-      type="button"
-      className="flex flex-col gap-2 rounded-[12px] border border-df-border bg-df-surface-2 p-3.5 text-left hover:border-df-brand hover:bg-df-brand-soft"
-    >
-      <Icon className="h-5 w-5" style={{ color: "hsl(var(--df-navy))" }} aria-hidden />
-      <span className="flex items-center justify-between gap-2">
-        <span className="text-[13px] font-bold text-df-text">{label}</span>
-        {hint && (
-          <kbd className="ff-mono rounded border border-df-border bg-df-surface px-1.5 py-0.5 text-[10px] text-df-text-muted">
-            {hint}
-          </kbd>
-        )}
-      </span>
-    </button>
-  );
-}
-
 function RecentRow({
-  icon: Icon,
-  tone,
-  text,
+  kind,
+  title,
+  subtitle,
   time,
   meta,
 }: {
-  icon: typeof Phone;
-  tone: "call" | "brand";
-  text: string;
+  kind: string;
+  title: string;
+  subtitle: string;
   time: string;
   meta: string;
 }) {
-  const palette = tone === "call"
-    ? { bg: "hsl(var(--df-call) / 0.13)", color: "hsl(var(--df-call))" }
-    : { bg: "hsl(var(--df-brand) / 0.13)", color: "hsl(var(--df-brand-ink))" };
+  const isMissed = subtitle.includes("no contestó") || subtitle.includes("ocupado") || subtitle.includes("falló");
+  const Icon = isMissed ? PhoneMissed : CheckCircle2;
+  const palette = isMissed
+    ? { bg: "hsl(var(--df-hang) / 0.13)", color: "hsl(var(--df-hang))" }
+    : { bg: "hsl(var(--df-call) / 0.13)", color: "hsl(var(--df-call))" };
   return (
     <div className="flex items-center gap-3 border-b border-df-border px-5 py-3 last:border-0">
       <span
         className="flex h-7 w-7 flex-none items-center justify-center rounded-[9px]"
         style={palette}
+        aria-label={kind}
       >
         <Icon className="h-3.5 w-3.5" aria-hidden />
       </span>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] font-semibold text-df-text">{text}</div>
-        <div className="text-[11.5px] text-df-text-dim">{time}</div>
+        <div className="truncate text-[13px] font-semibold text-df-text">{title}</div>
+        <div className="truncate text-[11.5px] text-df-text-dim">{subtitle} · {time}</div>
       </div>
       {meta && <span className="ff-mono text-[12px] text-df-text-muted">{meta}</span>}
     </div>

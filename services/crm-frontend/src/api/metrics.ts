@@ -41,3 +41,34 @@ export async function fetchAgentMetrics(
   if (!response.ok) throw await parseError(response);
   return (await response.json()) as AgentMetrics;
 }
+
+export interface AgentBreakdown {
+  username: string;
+  fullName: string;
+  totalCalls: number;
+  answeredCalls: number;
+  averageHandleSeconds: number;
+}
+
+export interface AdminMetrics {
+  date: string;
+  totalCalls: number;
+  answeredCalls: number;
+  missedCalls: number;
+  answerRate: number;
+  averageHandleSeconds: number;
+  activeAgents: number;
+  totalAgents: number;
+  topAgents: AgentBreakdown[];
+  byHour: HourlyBucket[];
+}
+
+export async function fetchAdminMetrics(
+  token: string,
+  date?: string,
+): Promise<AdminMetrics> {
+  const qs = date ? `?date=${date}` : "";
+  const response = await authorizedFetch(token, `/v1/metrics/admin${qs}`);
+  if (!response.ok) throw await parseError(response);
+  return (await response.json()) as AdminMetrics;
+}
