@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS inbound_routes (
   schedule_kind   ENUM('ALWAYS','BUSINESS','CUSTOM') NOT NULL DEFAULT 'ALWAYS',
   schedule_start  TIME         NULL,
   schedule_end    TIME         NULL,
-  days_mask       TINYINT UNSIGNED NOT NULL DEFAULT 127,    -- bits L(1) M(2) X(4) J(8) V(16) S(32) D(64); 127=todos
+  days_mask       SMALLINT NOT NULL DEFAULT 127,            -- bits L(1) M(2) X(4) J(8) V(16) S(32) D(64); 127=todos
   fallback_action ENUM('VOICEMAIL','OVERFLOW_SKILL','HANGUP') NOT NULL DEFAULT 'VOICEMAIL',
   fallback_skill_id BIGINT     NULL,
   enabled         BOOLEAN      NOT NULL DEFAULT TRUE,
@@ -134,12 +134,12 @@ CREATE TABLE IF NOT EXISTS inbound_routes (
 -- parking_config: singleton (1 fila) con la config global del parking IVR.
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS parking_config (
-  id              TINYINT      NOT NULL DEFAULT 1,
+  id              SMALLINT     NOT NULL DEFAULT 1,
   loop_seconds    INT          NOT NULL DEFAULT 30,
   timeout_seconds INT          NOT NULL DEFAULT 120,        -- a los X seg muestra el menu IVR
   greeting_url    VARCHAR(255) NULL,                        -- locucion inicial
   hold_music_url  VARCHAR(255) NULL,                        -- musica de espera
-  volume_pct      TINYINT UNSIGNED NOT NULL DEFAULT 80,
+  volume_pct      SMALLINT     NOT NULL DEFAULT 80,
   enabled         BOOLEAN      NOT NULL DEFAULT TRUE,
   updated_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
