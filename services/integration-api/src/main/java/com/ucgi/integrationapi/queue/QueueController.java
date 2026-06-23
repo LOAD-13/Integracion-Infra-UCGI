@@ -66,6 +66,6 @@ public class QueueController {
     }
 
     public record QueueEntry(String uniqueId, String fromNumber, String clientName,
-                             String reason, String wait, String priority) {
+                             String reason, String waitTime, String priority) {
     }
 }
