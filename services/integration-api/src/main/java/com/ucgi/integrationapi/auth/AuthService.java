@@ -41,11 +41,11 @@ public class AuthService {
         }
         String token = jwtService.issue(user.getUsername(), user.getRole());
         return new LoginResult(token, "Bearer", jwtService.expirationSeconds(),
-                user.getUsername(), user.getRole());
+                user.getUsername(), user.getRole(), user.isMustChangePassword());
     }
 
     public record LoginResult(String accessToken, String tokenType, long expiresIn,
-                              String username, String role) {
+                              String username, String role, boolean mustChangePassword) {
     }
 
     public static class BadCredentialsException extends RuntimeException {

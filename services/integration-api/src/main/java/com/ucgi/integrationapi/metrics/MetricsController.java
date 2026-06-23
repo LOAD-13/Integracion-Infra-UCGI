@@ -27,4 +27,13 @@ public class MetricsController {
         LocalDate target = date != null ? date : LocalDate.now();
         return ResponseEntity.ok(service.computeForUser(auth.getName(), target));
     }
+
+    @GetMapping("/admin")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<AdminMetricsResponse> admin(
+            @RequestParam(value = "date", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        LocalDate target = date != null ? date : LocalDate.now();
+        return ResponseEntity.ok(service.computeForAdmin(target));
+    }
 }
