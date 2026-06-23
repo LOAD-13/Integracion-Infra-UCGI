@@ -3,14 +3,13 @@ package com.ucgi.integrationapi.client;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import java.util.Set;
 
 /**
  * DTO de alta y edición. Mismos campos en ambos casos — el front decide qué
  * formulario muestra (RHF + Zod). El backend solo valida que los campos
  * obligatorios estén presentes y que el email tenga formato correcto si viaja.
  */
-import java.util.Set;
-
 public record ClientRequest(
         @NotBlank @Size(max = 255) String name,
         @NotBlank @Size(max = 32) String phone,
