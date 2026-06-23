@@ -23,7 +23,7 @@ export interface LoginResponse {
   role: string;
 }
 
-async function parseError(response: Response): Promise<ApiError> {
+export async function parseError(response: Response): Promise<ApiError> {
   let body: unknown = null;
   try {
     body = await response.json();

@@ -2,60 +2,111 @@
 @tailwind components;
 @tailwind utilities;
 
+/* DialFlow CRM — tokens extraidos de design-source/DESIGN.md.
+   Sin dark mode. Tema claro unico. */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
-  }
+    /* Superficies + texto */
+    --df-bg: 218 28% 93%;            /* #e8edf3 */
+    --df-surface: 0 0% 100%;
+    --df-surface-2: 215 41% 97%;     /* #f4f7fb */
+    --df-surface-3: 218 30% 94%;     /* #e9eef5 */
+    --df-border: 218 28% 91%;        /* #e1e7f0 */
+    --df-border-strong: 218 24% 85%; /* #cdd7e4 */
+    --df-text: 219 50% 15%;          /* #13243a */
+    --df-text-muted: 215 18% 43%;    /* #5a6b81 */
+    --df-text-dim: 213 16% 60%;      /* #8a98ab */
 
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+    /* Rail navy */
+    --df-navy: 212 70% 20%;          /* #0f3056 */
+    --df-navy-soft: 212 70% 20% / 0.08;
+    --df-rail-text: 218 26% 73%;     /* #a9b9cf */
+
+    /* Brand cyan */
+    --df-brand: 190 80% 45%;         /* #15a8c8 */
+    --df-brand-bright: 190 76% 53%;  /* #28c2e2 */
+    --df-brand-ink: 191 86% 32%;     /* #0c7c97 */
+    --df-brand-soft: 190 80% 45% / 0.13;
+
+    /* Call / Hang */
+    --df-call: 142 67% 36%;          /* #16a34a */
+    --df-call-soft: 142 67% 36% / 0.13;
+    --df-hang: 351 75% 56%;          /* #e23b54 */
+    --df-hang-soft: 351 75% 56% / 0.11;
+
+    /* Agent status */
+    --df-st-available: 142 67% 36%;
+    --df-st-break: 36 92% 46%;       /* #e0930b */
+    --df-st-busy: 19 87% 56%;        /* #ef6c2e */
+    --df-st-dnd: 351 75% 56%;
+    --df-st-offline: 214 14% 65%;    /* #94a3b8 */
+
+    /* shadcn-compatible alias (apunta a DialFlow) */
+    --background: var(--df-bg);
+    --foreground: var(--df-text);
+    --card: var(--df-surface);
+    --card-foreground: var(--df-text);
+    --popover: var(--df-surface);
+    --popover-foreground: var(--df-text);
+    --primary: var(--df-navy);
+    --primary-foreground: 0 0% 100%;
+    --secondary: var(--df-surface-2);
+    --secondary-foreground: var(--df-text);
+    --muted: var(--df-surface-2);
+    --muted-foreground: var(--df-text-muted);
+    --accent: var(--df-brand);
+    --accent-foreground: 0 0% 100%;
+    --destructive: var(--df-hang);
+    --destructive-foreground: 0 0% 100%;
+    --border: var(--df-border);
+    --input: var(--df-border);
+    --ring: var(--df-brand);
+    --radius: 0.625rem;
   }
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
+  * { @apply border-border; }
+  html, body, #root { height: 100%; margin: 0; padding: 0; }
   body {
     @apply bg-background text-foreground;
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-      "Helvetica Neue", Arial, sans-serif;
+    font-family: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: hsl(var(--df-brand) / 0.25); }
+}
+
+@layer utilities {
+  .ff-display { font-family: "Space Grotesk", system-ui, sans-serif; }
+  .ff-mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+  .df-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+  .df-scroll::-webkit-scrollbar-thumb {
+    background: hsl(var(--df-border-strong));
+    border-radius: 8px; border: 3px solid transparent; background-clip: padding-box;
+  }
+  .df-scroll::-webkit-scrollbar-track { background: transparent; }
+  .df-rail-scroll::-webkit-scrollbar { width: 8px; }
+  .df-rail-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 8px; }
+  .df-skel {
+    background: linear-gradient(90deg,
+      hsl(var(--df-surface-3)) 25%,
+      hsl(var(--df-surface-2)) 50%,
+      hsl(var(--df-surface-3)) 75%);
+    background-size: 920px 100%;
+    animation: df-shimmer 1.25s infinite linear;
+    border-radius: 7px;
+  }
+  .df-rail-bg {
+    background: linear-gradient(185deg, #0e2c50 0%, #0a1f3a 100%);
   }
 }
+
+@keyframes df-pulse   { 0%,100%{opacity:1} 50%{opacity:.35} }
+@keyframes df-ring    { 0%{transform:scale(1)} 50%{transform:scale(1.05)} 100%{transform:scale(1)} }
+@keyframes df-fade    { from{opacity:0} to{opacity:1} }
+@keyframes df-in      { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+@keyframes df-slidein { from{transform:translateX(110%)} to{transform:translateX(0)} }
+@keyframes df-pop     { from{opacity:0;transform:scale(.96)} to{opacity:1;transform:scale(1)} }
+@keyframes df-shimmer { 0%{background-position:-460px 0} 100%{background-position:460px 0} }

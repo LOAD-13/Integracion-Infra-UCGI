@@ -1,4 +1,5 @@
 import { ApiError, authorizedFetch } from "./client";
+import type { ClientTag } from "./clientTags";
 
 export interface Client {
   id: number;
@@ -7,6 +8,7 @@ export interface Client {
   email: string | null;
   company: string | null;
   notesSummary: string | null;
+  tags: ClientTag[];
   createdAt: string;
   updatedAt: string;
 }
@@ -17,6 +19,7 @@ export interface ClientPayload {
   email: string;
   company: string;
   notesSummary: string;
+  tagIds?: number[];
 }
 
 export interface PageResponse<T> {
@@ -110,4 +113,20 @@ export async function deleteClient(token: string, id: number): Promise<void> {
     method: "DELETE",
   });
   if (!response.ok && response.status !== 204) throw await parseError(response);
+}
+
+/**
+ * CTI: buscar cliente por caller-id. Devuelve null si no matchea (404).
+ */
+export async function findClientByPhone(
+  token: string,
+  phone: string,
+): Promise<Client | null> {
+  const response = await authorizedFetch(
+    token,
+    `/v1/clients/by-phone?phone=${encodeURIComponent(phone)}`,
+  );
+  if (response.status === 404) return null;
+  if (!response.ok) throw await parseError(response);
+  return (await response.json()) as Client;
 }
