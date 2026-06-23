@@ -6,6 +6,7 @@ import { ClientsPage } from "./pages/ClientsPage";
 import { ClientDetailPage } from "./pages/ClientDetailPage";
 import { ClientFormPage } from "./pages/ClientFormPage";
 import { MetricsPage } from "./pages/MetricsPage";
+import { CampaignsPage } from "./pages/CampaignsPage";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { AdminTagsPage } from "./pages/admin/AdminTagsPage";
 import { AdminSkillsPage } from "./pages/admin/AdminSkillsPage";
@@ -41,6 +42,7 @@ export default function App() {
       <Route path="/clients/:id" element={<Shell><ClientDetailPage /></Shell>} />
       <Route path="/clients/:id/edit" element={<Shell><ClientFormPage mode="edit" /></Shell>} />
       <Route path="/metrics" element={<Shell><MetricsPage /></Shell>} />
+      <Route path="/campaigns" element={<Shell><CampaignsPage /></Shell>} />
       <Route path="/admin/users" element={<AdminShell><AdminUsersPage /></AdminShell>} />
       <Route path="/admin/tags" element={<AdminShell><AdminTagsPage /></AdminShell>} />
       <Route path="/admin/skills" element={<AdminShell><AdminSkillsPage /></AdminShell>} />
