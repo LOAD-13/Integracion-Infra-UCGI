@@ -57,33 +57,63 @@ export function CallStage({ open, onMinimize, sideOffset = 0 }: CallStageProps) 
     return () => window.clearInterval(id);
   }, [callStartedAt]);
 
-  // Detecta tracks de video vivos en el stream remoto, y reacciona cuando
-  // tras un re-INVITE llega un track nuevo (vía onaddtrack del MediaStream).
+  // hasVideo = el track existe, está vivo, enabled, y NO está muted.
+  // El `track.muted` cambia cuando dejan de llegar frames (peer apagó la
+  // cámara con replaceTrack(null) sin re-INVITE) — así escondemos el frame
+  // congelado y mostramos el avatar.
   useEffect(() => {
-    const computeHasVideo = (s: MediaStream | null) =>
-      !!s && s.getVideoTracks().some((t) => t.readyState === "live" && t.enabled);
-    setRemoteHasVideo(computeHasVideo(remoteStream));
+    const compute = (s: MediaStream | null) =>
+      !!s && s.getVideoTracks().some((t) =>
+        t.readyState === "live" && t.enabled && !t.muted,
+      );
+    setRemoteHasVideo(compute(remoteStream));
     if (!remoteStream) return;
-    const refresh = () => setRemoteHasVideo(computeHasVideo(remoteStream));
+    const refresh = () => setRemoteHasVideo(compute(remoteStream));
     remoteStream.addEventListener("addtrack", refresh);
     remoteStream.addEventListener("removetrack", refresh);
+    const trackListeners: Array<() => void> = [];
+    for (const t of remoteStream.getVideoTracks()) {
+      t.addEventListener("mute", refresh);
+      t.addEventListener("unmute", refresh);
+      t.addEventListener("ended", refresh);
+      trackListeners.push(() => {
+        t.removeEventListener("mute", refresh);
+        t.removeEventListener("unmute", refresh);
+        t.removeEventListener("ended", refresh);
+      });
+    }
     return () => {
       remoteStream.removeEventListener("addtrack", refresh);
       remoteStream.removeEventListener("removetrack", refresh);
+      trackListeners.forEach((unhook) => unhook());
     };
   }, [remoteStream]);
 
   useEffect(() => {
-    const computeHasVideo = (s: MediaStream | null) =>
-      !!s && s.getVideoTracks().some((t) => t.readyState === "live" && t.enabled);
-    setLocalHasVideo(computeHasVideo(localStream));
+    const compute = (s: MediaStream | null) =>
+      !!s && s.getVideoTracks().some((t) =>
+        t.readyState === "live" && t.enabled && !t.muted,
+      );
+    setLocalHasVideo(compute(localStream));
     if (!localStream) return;
-    const refresh = () => setLocalHasVideo(computeHasVideo(localStream));
+    const refresh = () => setLocalHasVideo(compute(localStream));
     localStream.addEventListener("addtrack", refresh);
     localStream.addEventListener("removetrack", refresh);
+    const trackListeners: Array<() => void> = [];
+    for (const t of localStream.getVideoTracks()) {
+      t.addEventListener("mute", refresh);
+      t.addEventListener("unmute", refresh);
+      t.addEventListener("ended", refresh);
+      trackListeners.push(() => {
+        t.removeEventListener("mute", refresh);
+        t.removeEventListener("unmute", refresh);
+        t.removeEventListener("ended", refresh);
+      });
+    }
     return () => {
       localStream.removeEventListener("addtrack", refresh);
       localStream.removeEventListener("removetrack", refresh);
+      trackListeners.forEach((unhook) => unhook());
     };
   }, [localStream]);
 
