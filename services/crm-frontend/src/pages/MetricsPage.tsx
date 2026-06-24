@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Activity, Clock, PhoneCall, PhoneMissed, RefreshCw, TrendingUp, Users } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Activity, Clock, PhoneCall, PhoneMissed, RefreshCw, TrendingUp, Users, X } from "lucide-react";
 import {
   CartesianGrid,
   Line,
@@ -13,6 +13,7 @@ import { useAuth } from "@/auth/useAuth";
 import {
   fetchAdminMetrics,
   fetchAgentMetrics,
+  fetchAgentMetricsByUsername,
   type AdminMetrics,
   type AgentMetrics,
   type HourlyBucket,
@@ -30,6 +31,10 @@ export function MetricsPage({ autoRefreshMs = 60000 }: MetricsPageProps = {}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  // username del agente seleccionado en el ranking (filtra los KPIs admin).
+  const [focusUsername, setFocusUsername] = useState<string | null>(null);
+  // métricas del agente seleccionado (para chart byHour). Cargadas on-demand.
+  const [focusedAgentDetail, setFocusedAgentDetail] = useState<AgentMetrics | null>(null);
   const intervalRef = useRef<number | null>(null);
 
   const load = useCallback(async () => {
@@ -61,9 +66,45 @@ export function MetricsPage({ autoRefreshMs = 60000 }: MetricsPageProps = {}) {
     return undefined;
   }, [load, autoRefreshMs]);
 
-  const byHour: HourlyBucket[] = isAdmin
-    ? adminMetrics?.byHour ?? []
-    : agentMetrics?.byHour ?? [];
+  const focusedAgent = useMemo(() => {
+    if (!focusUsername || !adminMetrics) return null;
+    return adminMetrics.topAgents.find((a) => a.username === focusUsername) ?? null;
+  }, [focusUsername, adminMetrics]);
+
+  // Cuando hay focus, traemos el detalle del agente (incluye byHour real).
+  useEffect(() => {
+    if (!session || !isAdmin || !focusUsername) {
+      setFocusedAgentDetail(null);
+      return;
+    }
+    let cancelled = false;
+    fetchAgentMetricsByUsername(session.token, focusUsername)
+      .then((d) => { if (!cancelled) setFocusedAgentDetail(d); })
+      .catch(() => { if (!cancelled) setFocusedAgentDetail(null); });
+    return () => { cancelled = true; };
+  }, [session, isAdmin, focusUsername]);
+
+  // Cuando hay foco, sintetizamos una vista "como si" fuera del agente para
+  // los KPI cards + breakdown + chart de horas. byHour del agente solo se
+  // calcula de forma aproximada (no tenemos el detalle, así que dejamos el
+  // global como referencia y ocultamos las series de barras si hace falta).
+  const focusedAdminMetrics: AdminMetrics | null = focusedAgent && adminMetrics
+    ? {
+        ...adminMetrics,
+        totalCalls: focusedAgent.totalCalls,
+        answeredCalls: focusedAgent.answeredCalls,
+        missedCalls: focusedAgent.totalCalls - focusedAgent.answeredCalls,
+        averageHandleSeconds: focusedAgent.averageHandleSeconds,
+        answerRate: focusedAgent.totalCalls > 0
+          ? focusedAgent.answeredCalls / focusedAgent.totalCalls
+          : 0,
+      }
+    : adminMetrics;
+
+  // byHour: si hay focus en agente, usamos el detalle del backend; sino el global.
+  const byHour: HourlyBucket[] = !isAdmin
+    ? agentMetrics?.byHour ?? []
+    : focusedAgentDetail?.byHour ?? adminMetrics?.byHour ?? [];
 
   return (
     <div className="flex flex-col gap-5 animate-df-fade">
@@ -89,8 +130,24 @@ export function MetricsPage({ autoRefreshMs = 60000 }: MetricsPageProps = {}) {
         </p>
       )}
 
+      {isAdmin && focusedAgent && (
+        <div className="flex animate-df-in items-center gap-3 rounded-xl border border-df-brand/40 bg-df-brand-soft px-4 py-2.5 transition-all">
+          <span className="text-[13px] font-semibold text-df-brand-ink">
+            Filtrando por <b>{focusedAgent.fullName}</b> · {focusedAgent.username}
+          </span>
+          <button
+            type="button"
+            onClick={() => setFocusUsername(null)}
+            className="ml-auto flex items-center gap-1 text-[12px] font-semibold text-df-brand-ink hover:underline"
+          >
+            <X className="h-3.5 w-3.5" />
+            Volver a global
+          </button>
+        </div>
+      )}
+
       {isAdmin ? (
-        <AdminKpis metrics={adminMetrics} />
+        <AdminKpis metrics={focusedAdminMetrics} />
       ) : (
         <AgentKpis metrics={agentMetrics} />
       )}
@@ -128,8 +185,8 @@ export function MetricsPage({ autoRefreshMs = 60000 }: MetricsPageProps = {}) {
         {!isAdmin && agentMetrics && (
           <OutcomeBreakdown metrics={agentMetrics} />
         )}
-        {isAdmin && adminMetrics && (
-          <GlobalBreakdown metrics={adminMetrics} />
+        {isAdmin && focusedAdminMetrics && (
+          <GlobalBreakdown metrics={focusedAdminMetrics} />
         )}
       </div>
 
@@ -155,18 +212,27 @@ export function MetricsPage({ autoRefreshMs = 60000 }: MetricsPageProps = {}) {
                   </tr>
                 </thead>
                 <tbody>
-                  {adminMetrics.topAgents.map((a) => (
-                    <tr key={a.username} className="border-b border-df-border last:border-0">
-                      <td className="px-5 py-3 text-[13px] font-semibold text-df-text">
-                        {a.fullName} <span className="text-df-text-dim">· {a.username}</span>
-                      </td>
-                      <td className="ff-mono px-5 py-3 text-right text-[13px] text-df-text-muted">{a.totalCalls}</td>
-                      <td className="ff-mono px-5 py-3 text-right text-[13px] text-df-text-muted">{a.answeredCalls}</td>
-                      <td className="ff-mono px-5 py-3 text-right text-[13px] text-df-text-muted">
-                        {formatDuration(a.averageHandleSeconds)}
-                      </td>
-                    </tr>
-                  ))}
+                  {adminMetrics.topAgents.map((a) => {
+                    const isFocus = focusUsername === a.username;
+                    return (
+                      <tr
+                        key={a.username}
+                        onClick={() => setFocusUsername(isFocus ? null : a.username)}
+                        className="cursor-pointer border-b border-df-border transition-colors hover:bg-df-surface-2 last:border-0"
+                        style={isFocus ? { background: "hsl(var(--df-brand) / 0.13)" } : undefined}
+                        title={isFocus ? "Click para volver al global" : "Click para filtrar por este agente"}
+                      >
+                        <td className="px-5 py-3 text-[13px] font-semibold text-df-text">
+                          {a.fullName} <span className="text-df-text-dim">· {a.username}</span>
+                        </td>
+                        <td className="ff-mono px-5 py-3 text-right text-[13px] text-df-text-muted">{a.totalCalls}</td>
+                        <td className="ff-mono px-5 py-3 text-right text-[13px] text-df-text-muted">{a.answeredCalls}</td>
+                        <td className="ff-mono px-5 py-3 text-right text-[13px] text-df-text-muted">
+                          {formatDuration(a.averageHandleSeconds)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -257,7 +323,7 @@ function KpiGrid({
         return (
           <div
             key={k.label}
-            className="flex flex-col gap-2.5 rounded-[14px] border border-df-border bg-df-surface p-4 shadow-[0_1px_2px_rgba(13,37,66,.04)]"
+            className="flex flex-col gap-2.5 rounded-[14px] border border-df-border bg-df-surface p-4 shadow-[0_1px_2px_rgba(13,37,66,.04)] transition-all duration-200"
           >
             <div className="flex items-center justify-between">
               <span className="text-[12.5px] font-semibold text-df-text-muted">{k.label}</span>
@@ -269,13 +335,14 @@ function KpiGrid({
               </span>
             </div>
             <div
-              className="ff-display text-[30px] font-bold leading-none tabular-nums tracking-tight text-df-text"
+              key={`val-${k.value}`}
+              className="ff-display animate-df-in text-[30px] font-bold leading-none tabular-nums tracking-tight text-df-text"
               data-testid={`kpi-${k.label.toLowerCase().replace(/[^a-z]+/g, "-")}`}
             >
               {k.value}
             </div>
             {k.delta && (
-              <div className="text-[12px] font-semibold" style={{ color: k.deltaColor }}>
+              <div className="text-[12px] font-semibold transition-colors" style={{ color: k.deltaColor }}>
                 {k.delta}
               </div>
             )}
