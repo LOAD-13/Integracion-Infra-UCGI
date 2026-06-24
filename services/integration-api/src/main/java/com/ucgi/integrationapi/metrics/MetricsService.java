@@ -4,6 +4,7 @@ import com.ucgi.integrationapi.cdr.Cdr;
 import com.ucgi.integrationapi.cdr.CdrRepository;
 import com.ucgi.integrationapi.cdr.CdrSpecifications;
 import com.ucgi.integrationapi.error.ResourceNotFoundException;
+import com.ucgi.integrationapi.sipextension.SipExtensionRepository;
 import com.ucgi.integrationapi.user.User;
 import com.ucgi.integrationapi.user.UserRepository;
 import java.time.LocalDate;
@@ -22,26 +23,33 @@ public class MetricsService {
 
     private final CdrRepository cdrRepository;
     private final UserRepository userRepository;
+    private final SipExtensionRepository sipExtensionRepository;
 
-    public MetricsService(CdrRepository cdrRepository, UserRepository userRepository) {
+    public MetricsService(CdrRepository cdrRepository,
+                          UserRepository userRepository,
+                          SipExtensionRepository sipExtensionRepository) {
         this.cdrRepository = cdrRepository;
         this.userRepository = userRepository;
+        this.sipExtensionRepository = sipExtensionRepository;
     }
 
     @Transactional(readOnly = true)
     public AgentMetricsResponse computeForUser(String username, LocalDate date) {
-        Long agentUserId = userRepository.findByUsername(username)
-                .map(u -> u.getId())
+        User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Usuario autenticado no encontrado: " + username));
+        Long agentUserId = user.getId();
+        // Las llamadas internas entre extensiones cuentan en la métrica del
+        // agente que ATIENDE también — si solo filtramos por agent_user_id,
+        // los CDR donde el agente es el destino (callee) no aparecen.
+        String extension = sipExtensionRepository.findByUserId(agentUserId)
+                .map(e -> e.getExtensionNumber())
+                .orElse("__none__");
 
         LocalDateTime from = date.atStartOfDay();
         LocalDateTime to = date.atTime(LocalTime.MAX);
 
-        List<Cdr> cdrs = cdrRepository.findAll(
-                CdrSpecifications.agentIs(agentUserId)
-                        .and(CdrSpecifications.startedAfter(from))
-                        .and(CdrSpecifications.startedBefore(to)));
+        List<Cdr> cdrs = cdrRepository.findForAgentInRange(agentUserId, extension, from, to);
 
         long answered = 0;
         long missed = 0;

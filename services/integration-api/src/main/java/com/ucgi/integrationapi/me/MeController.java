@@ -2,7 +2,6 @@ package com.ucgi.integrationapi.me;
 
 import com.ucgi.integrationapi.cdr.Cdr;
 import com.ucgi.integrationapi.cdr.CdrRepository;
-import com.ucgi.integrationapi.cdr.CdrSpecifications;
 import com.ucgi.integrationapi.client.Client;
 import com.ucgi.integrationapi.client.ClientRepository;
 import com.ucgi.integrationapi.error.ResourceNotFoundException;
@@ -19,8 +18,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
@@ -117,12 +114,12 @@ public class MeController {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Usuario no encontrado: " + auth.getName()));
 
-        var pageable = PageRequest.of(0, 5,
-                Sort.by(Sort.Direction.DESC, "startTime"));
-        var page = cdrRepository.findAll(
-                CdrSpecifications.agentIs(user.getId()), pageable);
+        String extension = sipExtensionRepository.findByUserId(user.getId())
+                .map(SipExtension::getExtensionNumber)
+                .orElse("__none__");
+        var content = cdrRepository.findRecentForAgent(user.getId(), extension, 5);
 
-        List<Long> clientIds = page.getContent().stream()
+        List<Long> clientIds = content.stream()
                 .map(Cdr::getClientId).filter(java.util.Objects::nonNull).toList();
         Map<Long, String> clientNames = new HashMap<>();
         if (!clientIds.isEmpty()) {
@@ -133,10 +130,23 @@ public class MeController {
 
         ZoneId zone = ZoneId.systemDefault();
         List<RecentActivityResponse> out = new ArrayList<>();
-        for (Cdr cdr : page.getContent()) {
+        for (Cdr cdr : content) {
+            // El "contacto" es el extremo OPUESTO al agente actual. Para
+            // llamadas INTERNAS no podemos asumirlo desde la dirección, así
+            // que comparamos cada extremo con la extensión del usuario.
+            String otherEnd;
+            if (cdr.getDirection() == Cdr.Direction.INBOUND) {
+                otherEnd = cdr.getCallerNumber();
+            } else if (cdr.getDirection() == Cdr.Direction.OUTBOUND) {
+                otherEnd = cdr.getCalleeNumber();
+            } else {
+                otherEnd = extension.equals(cdr.getCalleeNumber())
+                        ? cdr.getCallerNumber()
+                        : cdr.getCalleeNumber();
+            }
             String contact = cdr.getClientId() != null
-                    ? clientNames.getOrDefault(cdr.getClientId(), cdr.getCallerNumber())
-                    : cdr.getCallerNumber();
+                    ? clientNames.getOrDefault(cdr.getClientId(), otherEnd)
+                    : otherEnd;
             String title = switch (cdr.getDirection()) {
                 case INBOUND -> "Llamada entrante";
                 case OUTBOUND -> "Llamada saliente";

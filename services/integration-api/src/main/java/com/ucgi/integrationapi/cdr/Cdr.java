@@ -60,6 +60,37 @@ public class Cdr {
     protected Cdr() {
     }
 
+    /**
+     * Factory para registros importados (MikoPBX → crm.cdr).
+     * Mantiene la inmutabilidad de la entidad fuera de package.
+     */
+    public static Cdr ofImported(
+            String callId,
+            Long agentUserId,
+            Long clientId,
+            String callerNumber,
+            String calleeNumber,
+            Direction direction,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            int durationSeconds,
+            Disposition disposition
+    ) {
+        Cdr c = new Cdr();
+        c.callId = callId;
+        c.agentUserId = agentUserId;
+        c.clientId = clientId;
+        c.callerNumber = callerNumber;
+        c.calleeNumber = calleeNumber;
+        c.direction = direction;
+        c.startTime = startTime;
+        c.endTime = endTime;
+        c.answerTime = disposition == Disposition.ANSWERED ? startTime : null;
+        c.durationSeconds = durationSeconds;
+        c.disposition = disposition;
+        return c;
+    }
+
     public Long getId() { return id; }
     public String getCallId() { return callId; }
     public Long getAgentUserId() { return agentUserId; }
