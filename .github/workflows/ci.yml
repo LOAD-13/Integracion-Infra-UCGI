@@ -38,14 +38,23 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: maven
-      - name: Build (skip tests)
+      # HU-06.2 (IUDCYGI-38): se quita el bypass -DskipTests del build. mvn verify
+      # ahora corre todos los unit tests via surefire + ejecuta JaCoCo (coverage
+      # report en target/site/jacoco/jacoco.xml). Los ITs con Testcontainers
+      # siguen gateados (skipITs=true por default) y se materializarán con un
+      # job CI dedicado en HU-06.4.
+      - name: Build + unit tests + JaCoCo coverage
         if: steps.detect.outputs.exists == 'true'
         working-directory: services/integration-api
-        run: ./mvnw -B verify -DskipTests
-      - name: Run midPoint mapping + shaper unit tests
+        run: ./mvnw -B verify
+      - name: Upload JaCoCo coverage report
         if: steps.detect.outputs.exists == 'true'
-        working-directory: services/integration-api
-        run: ./mvnw -B test -Dtest='MidpointMappingsTest,ShaperPolicyTest,ShaperPollingServiceTest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: services/integration-api/target/site/jacoco/
+          if-no-files-found: warn
+          retention-days: 7
 
   lint-crm:
     name: Lint CRM (Node)
