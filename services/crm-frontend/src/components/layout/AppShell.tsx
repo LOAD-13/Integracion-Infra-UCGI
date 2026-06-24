@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@/auth/useAuth";
 import { useSip } from "@/sip/useSip";
@@ -8,7 +8,7 @@ import { NotificationsPopover } from "@/components/notifications/NotificationsPo
 import { ActiveCallPanel } from "@/components/softphone/ActiveCallPanel";
 import { DialerSheet } from "@/components/softphone/DialerSheet";
 import { SoftphoneDock } from "@/components/softphone/SoftphoneDock";
-import { VideoCallOverlay } from "@/components/softphone/VideoCallOverlay";
+import { CallStage } from "@/components/softphone/CallStage";
 import { DialerProvider, useDialer } from "@/components/softphone/dialer-context";
 import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
@@ -59,18 +59,33 @@ function ShellInner({ children }: AppShellProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
-  const [videoOpen, setVideoOpen] = useState(false);
+  const [stageOpen, setStageOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   const { session } = useAuth();
-  const { state: sip } = useSip();
+  const { state: sip, remoteStream } = useSip();
   const { open: dialerOpen, openDialer, closeDialer } = useDialer();
   const { pathname } = useLocation();
   const isAdmin = session?.role === "ADMIN";
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const { breadcrumb, title } = useMemo(
     () => resolveTitle(pathname, isAdmin),
     [pathname, isAdmin],
   );
+
+  // CRÍTICO: bind del remoteStream al <audio> global para que se escuche el
+  // otro lado en llamadas de solo audio. Sin esto el RTP llega al browser
+  // pero nunca se reproduce.
+  useEffect(() => {
+    if (!remoteAudioRef.current) return;
+    remoteAudioRef.current.srcObject = remoteStream ?? null;
+    if (remoteStream) {
+      const p = remoteAudioRef.current.play();
+      if (p && typeof p.catch === "function") {
+        p.catch(() => { /* autoplay bloqueado: el primer click lo destraba */ });
+      }
+    }
+  }, [remoteStream]);
 
   // Unread count cada 30s.
   useEffect(() => {
@@ -100,7 +115,6 @@ function ShellInner({ children }: AppShellProps) {
         setCommandOpen(false);
         closeDialer();
         setPanelOpen(false);
-        setVideoOpen(false);
         setNotifOpen(false);
       }
     };
@@ -108,21 +122,22 @@ function ShellInner({ children }: AppShellProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, [isAdmin, openDialer, closeDialer]);
 
-  // Auto-abre panel y video según estado SIP (solo agente — admin no llama).
+  // Tipo "Teams": al conectar la llamada abrimos el stage central + panel
+  // lateral con datos del cliente. Al colgar cerramos todo.
   useEffect(() => {
     if (isAdmin) return;
-    if (sip.call === "connected" && !panelOpen && !videoOpen) {
+    if (sip.call === "connected") {
+      setStageOpen(true);
       setPanelOpen(true);
     }
-    if (sip.videoEnabled && sip.call === "connected") {
-      setVideoOpen(true);
-    }
     if (sip.call === "idle") {
+      setStageOpen(false);
       setPanelOpen(false);
-      setVideoOpen(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sip.call, sip.videoEnabled, isAdmin]);
+  }, [sip.call, isAdmin]);
+
+  const callActive = !isAdmin && (sip.call === "connected" || sip.call === "on-hold");
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-df-bg">
@@ -142,14 +157,30 @@ function ShellInner({ children }: AppShellProps) {
           </main>
         </div>
       </div>
-      {/* Admin no llama: oculta softphone, dialer y overlays de llamada. */}
-      {!isAdmin && <SoftphoneDock />}
-      {!isAdmin && <DialerSheet open={dialerOpen} onClose={closeDialer} />}
-      {!isAdmin && <ActiveCallPanel open={panelOpen} onClose={() => setPanelOpen(false)} />}
+      {/* Audio invisible que reproduce el RTP remoto en llamadas de solo audio. */}
       {!isAdmin && (
-        <VideoCallOverlay
-          open={videoOpen}
-          onClose={() => setVideoOpen(false)}
+        <audio
+          ref={remoteAudioRef}
+          autoPlay
+          playsInline
+          data-df-remote="1"
+          style={{ display: "none" }}
+          aria-hidden
+        />
+      )}
+      {/* Admin no llama: oculta softphone, dialer y overlays de llamada. */}
+      {!isAdmin && <SoftphoneDock minimized={callActive} onOpenStage={() => setStageOpen(true)} />}
+      {!isAdmin && <DialerSheet open={dialerOpen} onClose={closeDialer} />}
+      {!isAdmin && (
+        <ActiveCallPanel
+          open={panelOpen && callActive}
+          onClose={() => setPanelOpen(false)}
+        />
+      )}
+      {!isAdmin && (
+        <CallStage
+          open={stageOpen && callActive}
+          onMinimize={() => setStageOpen(false)}
           sideOffset={panelOpen ? 420 : 0}
         />
       )}

@@ -1,30 +1,32 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Headphones,
-  Mic,
-  MicOff,
-  Pause,
+  Maximize2,
   Phone,
   PhoneIncoming,
   PhoneOff,
-  Play,
   Smartphone,
-  Video,
 } from "lucide-react";
 import { useSip } from "@/sip/useSip";
-import { cn } from "@/lib/utils";
 import { useDialer } from "./dialer-context";
+
+interface SoftphoneDockProps {
+  /** Cuando hay una llamada conectada y el CallStage es la UI principal,
+   *  el dock pasa a modo "minimizado" sin controles. */
+  minimized?: boolean;
+  /** Permite reabrir el CallStage si el usuario lo minimizó. */
+  onOpenStage?: () => void;
+}
 
 /**
  * SoftphoneDock — barra persistente abajo de la app con 3 estados:
- *  - idle: registro + "Marcar" + "Simular entrante".
+ *  - idle: registro + "Marcar".
  *  - ringing-incoming: avatar pulsando + Rechazar/Contestar.
- *  - active: nombre + timer + controles mute/hold/video/transfer/Panel/Colgar.
- *
- * Reusa el hook useSip existente — NO modifica la logica SIP.
+ *  - active (minimized): info de la llamada + botón "Abrir panel" para
+ *    restaurar el CallStage. Los controles viven en el CallStage.
  */
-export function SoftphoneDock() {
-  const { state, answer, hangup, toggleMute, toggleHold, toggleVideo } = useSip();
+export function SoftphoneDock({ minimized = false, onOpenStage }: SoftphoneDockProps) {
+  const { state, answer, hangup } = useSip();
   const [callStartedAt, setCallStartedAt] = useState<number | null>(null);
   const [timer, setTimer] = useState("00:00");
   const tickRef = useRef<number | null>(null);
@@ -75,16 +77,18 @@ export function SoftphoneDock() {
         />
       )}
       {inActive && (
-        <ActiveRow
-          callState={state.call as "connected" | "on-hold" | "outgoing"}
+        <MinimizedRow
           remoteIdentity={state.remoteIdentity}
           timer={timer}
-          muted={state.muted}
-          hold={state.call === "on-hold"}
-          videoOn={state.videoEnabled}
-          onToggleMute={toggleMute}
-          onToggleHold={() => void toggleHold()}
-          onToggleVideo={() => void toggleVideo()}
+          phaseLabel={
+            state.call === "outgoing"
+              ? "LLAMANDO…"
+              : state.call === "on-hold"
+                ? "EN ESPERA"
+                : "EN LLAMADA"
+          }
+          minimized={minimized}
+          onOpenStage={onOpenStage}
           onHangup={() => void hangup()}
         />
       )}
@@ -198,139 +202,64 @@ function IncomingRow({
   );
 }
 
-interface ActiveRowProps {
-  callState: "connected" | "on-hold" | "outgoing";
+interface MinimizedRowProps {
   remoteIdentity: string | null;
   timer: string;
-  muted: boolean;
-  hold: boolean;
-  videoOn: boolean;
-  onToggleMute: () => void;
-  onToggleHold: () => void;
-  onToggleVideo: () => void;
+  phaseLabel: string;
+  minimized: boolean;
+  onOpenStage?: () => void;
   onHangup: () => void;
 }
 
-function ActiveRow({
-  callState,
+function MinimizedRow({
   remoteIdentity,
   timer,
-  muted,
-  hold,
-  videoOn,
-  onToggleMute,
-  onToggleHold,
-  onToggleVideo,
+  phaseLabel,
+  minimized,
+  onOpenStage,
   onHangup,
-}: ActiveRowProps) {
-  const phaseLabel =
-    callState === "outgoing" ? "LLAMANDO…" : hold ? "EN ESPERA" : "EN LLAMADA";
-  const phaseColor = callState === "outgoing" || hold ? "var(--df-st-break)" : "var(--df-call)";
-
+}: MinimizedRowProps) {
   return (
-    <div className="flex h-24 items-center gap-4 px-5">
+    <div className="flex h-16 items-center gap-4 px-5">
       <span
-        className="flex h-[50px] w-[50px] flex-none items-center justify-center rounded-full text-[17px] font-bold text-white"
+        className="flex h-[42px] w-[42px] flex-none items-center justify-center rounded-full text-[14px] font-bold text-white"
         style={{ background: "linear-gradient(140deg,#0f3056,#28c2e2)" }}
         aria-hidden
       >
         {initials(remoteIdentity)}
       </span>
-      <div className="min-w-0">
-        <div
-          className="text-[11px] font-bold tracking-wide"
-          style={{ color: `hsl(${phaseColor})` }}
-        >
+      <div className="min-w-0 flex-1">
+        <div className="text-[10.5px] font-bold tracking-wide" style={{ color: "hsl(var(--df-call))" }}>
           {phaseLabel}
         </div>
-        <div className="ff-display text-[16px] font-bold text-df-text">
+        <div className="ff-display truncate text-[14px] font-bold text-df-text">
           {remoteIdentity ?? "—"}
         </div>
       </div>
-      <div className="ml-3 flex h-[50px] items-center gap-2 border-x border-df-border px-4">
-        <span
-          className="inline-block h-[9px] w-[9px] animate-df-pulse rounded-full"
-          style={{ background: "hsl(var(--df-call))" }}
-        />
-        <span className="ff-mono text-[22px] font-semibold tracking-wider text-df-text">
-          {timer}
-        </span>
-      </div>
-      <div className="ml-auto flex items-center gap-2.5">
-        <DockIconButton
-          active={muted}
-          onClick={onToggleMute}
-          activeColor="hang"
-          aria-label={muted ? "Quitar silencio" : "Silenciar micrófono"}
-        >
-          {muted ? <MicOff className="h-[19px] w-[19px]" /> : <Mic className="h-[19px] w-[19px]" />}
-        </DockIconButton>
-        <DockIconButton
-          active={hold}
-          onClick={onToggleHold}
-          activeColor="break"
-          aria-label={hold ? "Reanudar llamada" : "Poner en espera"}
-        >
-          {hold ? <Play className="h-[19px] w-[19px]" /> : <Pause className="h-[19px] w-[19px]" />}
-        </DockIconButton>
-        <DockIconButton
-          active={videoOn}
-          onClick={onToggleVideo}
-          activeColor="brand"
-          aria-label={videoOn ? "Apagar video" : "Activar video"}
-        >
-          <Video className="h-[19px] w-[19px]" />
-        </DockIconButton>
+      <span className="ff-mono text-[16px] font-semibold tracking-wider text-df-text">{timer}</span>
+      {minimized && onOpenStage && (
         <button
           type="button"
-          onClick={onHangup}
-          className="flex h-[46px] items-center gap-2 rounded-[12px] border-0 px-5 text-[14px] font-bold text-white hover:brightness-110"
-          style={{ background: "hsl(var(--df-hang))" }}
-          aria-label="Colgar"
+          onClick={onOpenStage}
+          className="flex h-10 items-center gap-1.5 rounded-[10px] border border-df-border bg-df-surface-2 px-3 text-[12.5px] font-semibold text-df-text-muted hover:border-df-brand"
+          aria-label="Abrir panel de llamada"
+          title="Abrir panel de llamada"
         >
-          <Phone className="h-[18px] w-[18px] rotate-[135deg]" aria-hidden />
-          Colgar
+          <Maximize2 className="h-3.5 w-3.5" />
+          Abrir panel
         </button>
-      </div>
-    </div>
-  );
-}
-
-function DockIconButton({
-  active,
-  activeColor,
-  onClick,
-  children,
-  ...rest
-}: {
-  active: boolean;
-  activeColor: "hang" | "break" | "brand";
-  onClick: () => void;
-  children: React.ReactNode;
-} & React.HTMLAttributes<HTMLButtonElement>) {
-  const palette = {
-    hang: { bg: "hsl(var(--df-hang) / 0.11)", border: "hsl(var(--df-hang))", color: "hsl(var(--df-hang))" },
-    break: { bg: "hsl(var(--df-st-break) / 0.14)", border: "hsl(var(--df-st-break))", color: "hsl(var(--df-st-break))" },
-    brand: { bg: "hsl(var(--df-brand) / 0.13)", border: "hsl(var(--df-brand))", color: "hsl(var(--df-brand-ink))" },
-  }[activeColor];
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex h-[46px] w-[46px] items-center justify-center rounded-[12px] border",
-        active ? "" : "bg-df-surface-2 text-df-text-muted",
       )}
-      style={
-        active
-          ? { background: palette.bg, borderColor: palette.border, color: palette.color }
-          : { borderColor: "hsl(var(--df-border))" }
-      }
-      {...rest}
-    >
-      {children}
-    </button>
+      <button
+        type="button"
+        onClick={onHangup}
+        className="flex h-10 items-center gap-1.5 rounded-[10px] border-0 px-4 text-[13px] font-bold text-white hover:brightness-110"
+        style={{ background: "hsl(var(--df-hang))" }}
+        aria-label="Colgar"
+      >
+        <Phone className="h-3.5 w-3.5 rotate-[135deg]" aria-hidden />
+        Colgar
+      </button>
+    </div>
   );
 }
 
