@@ -29,6 +29,8 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: "./src/setupTests.ts",
     css: false,
+    // Excluye specs Playwright: viven en tests/e2e y corren con `npm run test:e2e`.
+    exclude: ["**/node_modules/**", "**/dist/**", "**/tests/e2e/**"],
     coverage: {
       // HU-06.3 (IUDCYGI-39): cobertura TS con provider v8 nativo y formatos
       // text (resumen consola), html (browseable), lcov (sonar-scanner), json-summary
