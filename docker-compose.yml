@@ -21,7 +21,7 @@ services:
     # En dev, docker-compose.dev.yml mapea 13306 (host) -> 3306 (container)
     # para poder conectarse con clientes locales (DBeaver, mysql cli).
     networks:
-      - ucgi-net
+      - ucgi-backend
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MARIADB_ROOT_PASSWORD}"]
       interval: 10s
@@ -43,7 +43,7 @@ services:
     volumes:
       - midpoint-pg-data:/var/lib/postgresql/data
     networks:
-      - ucgi-net
+      - ucgi-backend
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${MP_DB_USER} -d midpoint"]
       interval: 10s
@@ -73,7 +73,7 @@ services:
     ports:
       - "8080:8080"
     networks:
-      - ucgi-net
+      - ucgi-backend
     depends_on:
       db:
         condition: service_healthy
@@ -122,7 +122,7 @@ services:
       - "8089:8089/tcp"                     # WSS para SIP.js (HU-07.2)
       - "10000-10200:10000-10200/udp"       # RTP (~100 llamadas concurrentes)
     networks:
-      - ucgi-net
+      - ucgi-voip
     healthcheck:
       test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://127.0.0.1:80/ || exit 1"]
       interval: 30s
@@ -185,7 +185,8 @@ services:
     ports:
       - "8081:8081"
     networks:
-      - ucgi-net
+      - ucgi-backend
+      - ucgi-voip
     depends_on:
       db:
         condition: service_healthy
@@ -213,7 +214,7 @@ services:
     container_name: ucgi-crm
     restart: unless-stopped
     networks:
-      - ucgi-net
+      - ucgi-frontend
     depends_on:
       - integration-api
 
@@ -235,7 +236,8 @@ services:
       - "80:80"
       - "443:443"
     networks:
-      - ucgi-net
+      - ucgi-frontend
+      - ucgi-backend
     depends_on:
       midpoint:
         condition: service_healthy
@@ -262,7 +264,7 @@ services:
     ports:
       - "9000:9000"
     networks:
-      - ucgi-net
+      - ucgi-backend
     depends_on:
       - sonar-db
 
@@ -277,8 +279,7 @@ services:
     volumes:
       - sonar-pg-data:/var/lib/postgresql/data
     networks:
-      - ucgi-net
-
+      - ucgi-backend
   # ===== Prometheus =====
   prometheus:
     image: prom/prometheus:latest
@@ -294,8 +295,7 @@ services:
     ports:
       - "9090:9090"
     networks:
-      - ucgi-net
-
+      - ucgi-backend
   # ===== Grafana =====
   grafana:
     image: grafana/grafana:latest
@@ -311,7 +311,7 @@ services:
     ports:
       - "3001:3000"
     networks:
-      - ucgi-net
+      - ucgi-backend
     depends_on:
       - prometheus
 
@@ -328,13 +328,18 @@ services:
     image: ucgi/shaper:0.1.0-mock
     container_name: ucgi-shaper
     restart: unless-stopped
+    # HU-08.5: NET_ADMIN habilita los endpoints POST /limit y POST /reset que
+    # aplican `tc qdisc tbf` en eth0. Sin esta cap, los endpoints devuelven
+    # 500 con "Operation not permitted" del stderr de tc.
+    cap_add:
+      - NET_ADMIN
     environment:
       MOCK_BANDWIDTH_MBPS: ${SHAPER_MOCK_BANDWIDTH_MBPS:-50}
       MOCK_QDISC_ACTIVE: ${SHAPER_MOCK_QDISC_ACTIVE:-false}
     ports:
       - "9100:9100"
     networks:
-      - ucgi-net
+      - ucgi-voip
       - ucgi-backend
 
 # ===== Networking =====
@@ -349,9 +354,6 @@ services:
 #   - Subnet propia (172.18.0.0/16 por defecto en Docker), no compartida con
 #     otros proyectos del developer.
 networks:
-  ucgi-net:
-    name: ucgi-net
-    driver: bridge
   # ============================================================
   # Segmentación HU-07.8 (versión mínima — IUDCYGI-162)
   # ============================================================
@@ -364,12 +366,21 @@ networks:
   ucgi-frontend:
     name: ucgi-frontend
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
   ucgi-voip:
     name: ucgi-voip
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/24
   ucgi-backend:
     name: ucgi-backend
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.22.0.0/24
 
 # ===== Volúmenes nombrados =====
 # Persistencia de datos entre `down`/`up`. Mantener TODOS los servicios con
