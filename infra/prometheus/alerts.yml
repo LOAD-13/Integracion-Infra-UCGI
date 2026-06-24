@@ -1,12 +1,103 @@
-# alerts.yml — reglas de alerta mínimas para evitar `--config.file` vacío.
-# Las reglas reales (latencia, error rate, BW saturado) entran en HU-08.2.
+# alerts.yml — Reglas de alertas Prometheus alineadas con los SLOs del lab UCGI.
+#
+# HU-08.4 (IUDCYGI-52) materializa las 3 reglas mínimas pedidas + amplía con
+# 4 reglas adicionales para cubrir los SLOs declarados en docs/iso/iso-25010-mapping.md
+# §5 (Fiabilidad) y §2 (Eficiencia).
+#
+# Convenciones:
+#   - `severity: critical` despierta a un humano (oncall, demo en jueves).
+#   - `severity: warning`  va al canal de equipo (lo revisamos en standup).
+#   - `for: 1m` evita falsos positivos por jitter de scrape.
+
 groups:
-  - name: ucgi-placeholder
+  - name: ucgi-availability
+    interval: 30s
     rules:
+      - alert: IntegrationApiDown
+        expr: up{job="integration-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          sli: availability
+        annotations:
+          summary: "integration-api caído > 1 min"
+          description: >-
+            El job `{{ $labels.job }}` no responde scrape en `{{ $labels.instance }}`.
+            Comprobá `docker logs ucgi-integration-api` y health en
+            `/actuator/health`.
+          runbook_url: docs/runbooks/incidente-integration-api.md
+          slo: "disponibilidad ≥ 99% (HU-06.5)"
+
       - alert: PrometheusSelfDown
         expr: up{job="prometheus"} == 0
         for: 1m
         labels:
           severity: warning
         annotations:
-          summary: "Prometheus no responde a sí mismo (placeholder HU-08.2)"
+          summary: "Prometheus no responde a sí mismo"
+
+      - alert: ShaperDown
+        expr: up{job="shaper"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ucgi-shaper caído — KPI bw/active calls sin datos"
+
+  - name: ucgi-error-rate
+    interval: 30s
+    rules:
+      - alert: ApiErrorRateHigh
+        # 5xx > 5% del total durante 5 min, ignorando los conteos cero.
+        expr: |
+          sum(rate(http_server_requests_seconds_count{status=~"5..", job="integration-api"}[5m]))
+          /
+          sum(rate(http_server_requests_seconds_count{job="integration-api"}[5m]))
+          > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          sli: error-rate
+        annotations:
+          summary: "error rate API > 5% durante 5 min"
+          description: "Riesgo de incumplimiento del SLO de disponibilidad."
+
+  - name: ucgi-latency
+    interval: 30s
+    rules:
+      - alert: ApiLatencyP95High
+        # SLO: p95 < 200 ms. Alertamos si supera 500 ms por 5 min sostenido.
+        expr: |
+          histogram_quantile(0.95,
+            sum by(le) (rate(http_server_requests_seconds_bucket{job="integration-api"}[5m]))
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          sli: latency-p95
+        annotations:
+          summary: "latencia API p95 > 500 ms (SLO 200ms)"
+
+  - name: ucgi-bandwidth
+    interval: 30s
+    rules:
+      - alert: BandwidthSaturated
+        # active calls supera el 70% del teórico → tier downgrade inminente.
+        expr: ucgi_shaper_active_calls / ucgi_shaper_max_calls_theoretical > 0.7
+        for: 3m
+        labels:
+          severity: warning
+          sli: capacity
+        annotations:
+          summary: "Llamadas activas > 70% del máximo teórico"
+          description: "Tier puede caer a DOWNGRADED o restringir nuevas llamadas."
+
+      - alert: CodecDowngradeForced
+        expr: ucgi_shaper_tier == 2
+        for: 1m
+        labels:
+          severity: warning
+          sli: capacity
+        annotations:
+          summary: "Shaper forzó downgrade de códec (tier=DOWNGRADED)"
+          description: "BW disponible insuficiente para opus/vp8; usando g726/h264."
