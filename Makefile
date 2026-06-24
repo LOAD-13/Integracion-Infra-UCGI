@@ -1,6 +1,6 @@
 # Makefile — atajos del proyecto UCGI
 
-.PHONY: help up down logs restart build ps clean test lint sonar certs stress
+.PHONY: help up down logs restart build ps clean test lint sonar sonar-up sonar-api sonar-crm certs stress coverage-api coverage-crm
 .DEFAULT_GOAL := help
 
 help: ## Muestra esta ayuda
@@ -40,10 +40,32 @@ test: ## Ejecuta tests de api y crm
 lint: ## Lint del frontend
 	cd services/crm-frontend && npm run lint
 
-sonar: ## Lanza análisis SonarQube
+coverage-api: ## Cobertura JaCoCo del integration-api → target/site/jacoco/
+	cd services/integration-api && ./mvnw -B verify
+
+coverage-crm: ## Cobertura v8 del CRM → coverage/lcov.info
+	cd services/crm-frontend && npm run test:coverage
+
+sonar: sonar-api sonar-crm ## Análisis SonarQube completo (Java + TS)
+
+sonar-up: ## Asegura SonarQube + DB UP healthy en http://localhost:9000
 	docker compose up -d sonar sonar-db
-	cd services/integration-api && ./mvnw sonar:sonar
-	cd services/crm-frontend && npm run sonar
+	@echo "Esperando SonarQube en http://localhost:9000 (~60s primer arranque)..."
+	@until curl -sf http://localhost:9000/api/system/status >/dev/null 2>&1; do sleep 3; done
+	@echo "SonarQube UP."
+
+sonar-api: sonar-up ## Análisis SonarQube del integration-api (Java + JaCoCo)
+	@test -n "$$SONAR_TOKEN" || (echo "ERROR: exportá SONAR_TOKEN (http://localhost:9000 → Administration → Security → Users → Tokens)"; exit 1)
+	cd services/integration-api && ./mvnw -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+		-Dsonar.host.url=http://localhost:9000 \
+		-Dsonar.login=$$SONAR_TOKEN
+
+sonar-crm: sonar-up coverage-crm ## Análisis SonarQube del CRM (TypeScript + lcov)
+	@test -n "$$SONAR_TOKEN" || (echo "ERROR: exportá SONAR_TOKEN (http://localhost:9000 → Administration → Security → Users → Tokens)"; exit 1)
+	@command -v sonar-scanner >/dev/null 2>&1 || { echo "ERROR: sonar-scanner no instalado; npm i -g sonarqube-scanner"; exit 1; }
+	cd services/crm-frontend && sonar-scanner \
+		-Dsonar.host.url=http://localhost:9000 \
+		-Dsonar.login=$$SONAR_TOKEN
 
 stress: ## Pruebas de carga SIPp (50 cc)
 	./tests/load/run-stress.sh
