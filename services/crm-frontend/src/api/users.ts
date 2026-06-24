@@ -1,5 +1,7 @@
 import { ApiError, authorizedFetch } from "./client";
 
+export type AgentStatus = "AVAILABLE" | "BREAK" | "BUSY" | "DND" | "OFFLINE";
+
 export interface UserSummary {
   id: number;
   username: string;
@@ -7,6 +9,8 @@ export interface UserSummary {
   fullName: string;
   role: "ADMIN" | "AGENTE";
   active: boolean;
+  agentStatus: AgentStatus | null;
+  statusSince: string | null;
   createdAt: string;
   /** Solo viene en la respuesta de POST cuando el backend la autogeneró. */
   generatedPassword?: string | null;

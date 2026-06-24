@@ -125,13 +125,7 @@ export function AdminUsersPage() {
                 <option value="ADMIN">ADMIN</option>
               </select>
             </span>
-            <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-df-text-muted">
-              <span
-                className="inline-block h-2 w-2 rounded-full"
-                style={{ background: user.active ? "hsl(var(--df-st-available))" : "hsl(var(--df-st-offline))" }}
-              />
-              {user.active ? "Activo" : "Inactivo"}
-            </span>
+            <UserStatusCell user={user} />
             <div className="flex justify-end gap-1.5">
               <button
                 type="button"
@@ -147,6 +141,40 @@ export function AdminUsersPage() {
         ))}
       </div>
     </div>
+  );
+}
+
+const AGENT_STATUS_META: Record<string, { label: string; color: string }> = {
+  AVAILABLE: { label: "Disponible", color: "hsl(var(--df-st-available))" },
+  BREAK: { label: "En descanso", color: "hsl(var(--df-st-break))" },
+  BUSY: { label: "Ocupado", color: "hsl(var(--df-st-busy))" },
+  DND: { label: "No molestar", color: "hsl(var(--df-st-dnd))" },
+  OFFLINE: { label: "Desconectado", color: "hsl(var(--df-st-offline))" },
+};
+
+function UserStatusCell({ user }: { user: UserSummary }) {
+  if (!user.active) {
+    return (
+      <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-df-text-muted">
+        <span className="inline-block h-2 w-2 rounded-full" style={{ background: "hsl(var(--df-st-offline))" }} />
+        Dado de baja
+      </span>
+    );
+  }
+  if (user.role === "ADMIN") {
+    return (
+      <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-df-text-muted">
+        <span className="inline-block h-2 w-2 rounded-full" style={{ background: "hsl(var(--df-navy))" }} />
+        Administrador
+      </span>
+    );
+  }
+  const meta = AGENT_STATUS_META[user.agentStatus ?? "OFFLINE"] ?? AGENT_STATUS_META.OFFLINE;
+  return (
+    <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-df-text-muted">
+      <span className="inline-block h-2 w-2 rounded-full" style={{ background: meta.color }} />
+      {meta.label}
+    </span>
   );
 }
 

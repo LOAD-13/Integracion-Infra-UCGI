@@ -18,7 +18,7 @@ interface NotesPanelProps {
 
 export function NotesPanel({
   clientId,
-  autosaveDelayMs = 5000,
+  autosaveDelayMs = 1500,
 }: NotesPanelProps) {
   const { session } = useAuth();
   const [activeNote, setActiveNote] = useState<Note | null>(null);
@@ -83,8 +83,8 @@ export function NotesPanel({
         <div>
           <h3 className="text-base font-semibold">Notas del cliente</h3>
           <p className="text-xs text-muted-foreground">
-            Autosave cada {Math.round(autosaveDelayMs / 1000)}s. Se guarda mientras
-            escribís — no hace falta tocar botones.
+            Autosave a {autosaveDelayMs >= 1000 ? `${(autosaveDelayMs / 1000).toFixed(1)}s` : `${autosaveDelayMs}ms`} de
+            inactividad o al salir del campo.
           </p>
         </div>
         <StatusBadge status={status} lastSavedAt={lastSavedAt} />
@@ -103,6 +103,7 @@ export function NotesPanel({
         rows={6}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => void handleSave(draft)}
         placeholder="Anotá los puntos importantes de la llamada (autosave activo)"
         disabled={!loaded}
         aria-label="Notas del cliente"

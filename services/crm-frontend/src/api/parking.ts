@@ -77,3 +77,31 @@ export async function deleteIvrOption(token: string, id: number): Promise<void> 
   });
   if (!response.ok && response.status !== 204) throw await parseError(response);
 }
+
+export interface MikoSoundFile {
+  id: string;
+  name: string;
+  path: string;
+  category: string;
+  fileSize: number;
+  duration: string;
+}
+
+export async function listMikoSoundFiles(token: string): Promise<MikoSoundFile[]> {
+  const response = await authorizedFetch(token, "/v1/admin/parking/sound-files");
+  if (!response.ok) throw await parseError(response);
+  return (await response.json()) as MikoSoundFile[];
+}
+
+export async function generateTts(
+  token: string,
+  text: string,
+  lang: string = "es",
+): Promise<MikoSoundFile> {
+  const response = await authorizedFetch(token, "/v1/admin/parking/tts", {
+    method: "POST",
+    body: JSON.stringify({ text, lang }),
+  });
+  if (!response.ok) throw await parseError(response);
+  return (await response.json()) as MikoSoundFile;
+}
