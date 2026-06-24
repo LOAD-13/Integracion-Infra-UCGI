@@ -3,72 +3,256 @@
   "version": 2,
   "uid": "ucgi-overview",
   "title": "UCGI Overview",
-  "tags": ["ucgi", "voip", "overview"],
+  "tags": [
+    "ucgi",
+    "voip",
+    "overview"
+  ],
   "timezone": "browser",
   "refresh": "10s",
-  "time": { "from": "now-30m", "to": "now" },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
   "panels": [
     {
       "id": 1,
       "type": "stat",
       "title": "Integration API",
-      "gridPos": { "h": 4, "w": 3, "x": 0, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
-      "targets": [{ "expr": "up{job=\"integration-api\"}", "refId": "A" }],
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ucgi-prom"
+      },
+      "targets": [
+        {
+          "expr": "up{job=\"integration-api\"}",
+          "refId": "A"
+        }
+      ],
       "fieldConfig": {
         "defaults": {
-          "mappings": [{ "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }],
-          "color": { "mode": "thresholds" },
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "UP",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
         }
       },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      }
     },
     {
       "id": 2,
       "type": "stat",
       "title": "Shaper",
-      "gridPos": { "h": 4, "w": 3, "x": 3, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
-      "targets": [{ "expr": "up{job=\"shaper\"}", "refId": "A" }],
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 3,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ucgi-prom"
+      },
+      "targets": [
+        {
+          "expr": "up{job=\"shaper\"}",
+          "refId": "A"
+        }
+      ],
       "fieldConfig": {
         "defaults": {
-          "mappings": [{ "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }],
-          "color": { "mode": "thresholds" },
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "UP",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
         }
       },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      }
     },
     {
       "id": 3,
       "type": "stat",
       "title": "Codec actual",
       "description": "Codec elegido por el shaper para la próxima llamada según BW + concurrencia. opus_24+vp8 (FULL), opus_24 (MIXED), g729 (DOWNGRADED), reject (EMERGENCY).",
-      "gridPos": { "h": 4, "w": 4, "x": 6, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
-      "targets": [{
-        "expr": "ucgi_shaper_codec_info",
-        "refId": "A",
-        "legendFormat": "{{codec}}",
-        "instant": true,
-        "range": false
-      }],
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 6,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ucgi-prom"
+      },
+      "targets": [
+        {
+          "expr": "ucgi_shaper_codec_info",
+          "refId": "A",
+          "legendFormat": "{{codec}}",
+          "instant": true,
+          "range": false
+        }
+      ],
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
           "noValue": "sin dato"
         },
         "overrides": [
-          { "matcher": { "id": "byName", "options": "opus_24+vp8" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] },
-          { "matcher": { "id": "byName", "options": "opus_24" },     "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }] },
-          { "matcher": { "id": "byName", "options": "g729" },         "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] },
-          { "matcher": { "id": "byName", "options": "reject" },        "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] }
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "opus_24+vp8"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "opus_24"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "g729"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "reject"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
         ]
       },
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "" },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
         "colorMode": "background",
         "textMode": "name",
         "graphMode": "none",
@@ -80,94 +264,342 @@
       "type": "stat",
       "title": "Tráfico actual",
       "description": "Tráfico RX+TX real en eth0 del shaper (sysfs). Fluctúa con llamadas activas. Para ver la capacidad del NIC mirá `ucgi_shaper_bandwidth_mbps`.",
-      "gridPos": { "h": 4, "w": 3, "x": 10, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
-      "targets": [{ "expr": "ucgi_shaper_traffic_total_mbps", "refId": "A" }],
-      "fieldConfig": {
-        "defaults": { "unit": "Mbits", "decimals": 2, "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }, { "color": "green", "value": 0.1 }, { "color": "orange", "value": 1 }, { "color": "red", "value": 10 }] } }
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 10,
+        "y": 0
       },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" }
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ucgi-prom"
+      },
+      "targets": [
+        {
+          "expr": "ucgi_shaper_traffic_total_mbps",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Mbits",
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0.1
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "area"
+      }
     },
     {
       "id": 5,
       "type": "stat",
       "title": "Llamadas activas",
-      "gridPos": { "h": 4, "w": 3, "x": 13, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
-      "targets": [{ "expr": "ucgi_shaper_active_calls", "refId": "A" }],
-      "fieldConfig": { "defaults": { "unit": "short" } },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value" }
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 13,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ucgi-prom"
+      },
+      "targets": [
+        {
+          "expr": "ucgi_shaper_active_calls",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value"
+      }
     },
     {
       "id": 6,
       "type": "stat",
       "title": "Req/s 5m",
-      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
-      "targets": [{ "expr": "sum(rate(http_server_requests_seconds_count{job=\"integration-api\"}[5m]))", "refId": "A" }],
-      "fieldConfig": { "defaults": { "unit": "reqps", "decimals": 2 } },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value" }
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ucgi-prom"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{job=\"integration-api\"}[5m]))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "decimals": 2
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value"
+      }
     },
     {
       "id": 7,
       "type": "stat",
       "title": "Error rate 5m",
       "description": "Porcentaje de respuestas 5xx en los últimos 5 minutos. Si no hubo tráfico, muestra 0%.",
-      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
-      "targets": [{ "expr": "(sum(rate(http_server_requests_seconds_count{job=\"integration-api\",status=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_server_requests_seconds_count{job=\"integration-api\"}[5m])) or vector(1), 1)", "refId": "A" }],
-      "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 2, "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 0.01 }, { "color": "red", "value": 0.05 }] } } },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ucgi-prom"
+      },
+      "targets": [
+        {
+          "expr": "(sum(rate(http_server_requests_seconds_count{job=\"integration-api\",status=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_server_requests_seconds_count{job=\"integration-api\"}[5m])) or vector(1), 1)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.01
+              },
+              {
+                "color": "red",
+                "value": 0.05
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      }
     },
     {
       "id": 10,
       "type": "timeseries",
       "title": "HTTP requests/sec por endpoint",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
-      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
-      "targets": [{ "expr": "sum by (uri) (rate(http_server_requests_seconds_count{job=\"integration-api\"}[1m]))", "legendFormat": "{{uri}}", "refId": "A" }],
-      "fieldConfig": { "defaults": { "unit": "reqps" } },
-      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] } }
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ucgi-prom"
+      },
+      "targets": [
+        {
+          "expr": "sum by (uri) (rate(http_server_requests_seconds_count{job=\"integration-api\"}[1m]))",
+          "legendFormat": "{{uri}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        }
+      }
     },
     {
       "id": 11,
       "type": "timeseries",
       "title": "Latency p50/p95/p99 (integration-api)",
       "description": "Cuantiles de latencia HTTP a partir del histograma Micrometer. p95 = 95% de las peticiones por debajo de ese tiempo.",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
-      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ucgi-prom"
+      },
       "targets": [
-        { "expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"integration-api\"}[5m]))) or vector(0)", "legendFormat": "p50", "refId": "A" },
-        { "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"integration-api\"}[5m]))) or vector(0)", "legendFormat": "p95", "refId": "B" },
-        { "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"integration-api\"}[5m]))) or vector(0)", "legendFormat": "p99", "refId": "C" }
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"integration-api\"}[5m]))) or vector(0)",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"integration-api\"}[5m]))) or vector(0)",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"integration-api\"}[5m]))) or vector(0)",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
       ],
-      "fieldConfig": { "defaults": { "unit": "s" } }
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      }
     },
     {
       "id": 20,
       "type": "timeseries",
       "title": "Shaper: Tráfico (Mbps) y Llamadas activas",
       "description": "Tráfico RX+TX en eth0 del shaper, y llamadas activas leídas de MikoPBX. Ambas series con eje independiente para que se vean los picos.",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
-      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ucgi-prom"
+      },
       "targets": [
-        { "expr": "ucgi_shaper_traffic_total_mbps", "legendFormat": "Tráfico Mbps", "refId": "A" },
-        { "expr": "ucgi_shaper_active_calls", "legendFormat": "Llamadas activas", "refId": "B" }
+        {
+          "expr": "ucgi_shaper_traffic_total_mbps",
+          "legendFormat": "Tráfico Mbps",
+          "refId": "A"
+        },
+        {
+          "expr": "ucgi_shaper_active_calls",
+          "legendFormat": "Llamadas activas",
+          "refId": "B"
+        }
       ],
       "fieldConfig": {
         "defaults": {},
         "overrides": [
-          { "matcher": { "id": "byName", "options": "Tráfico Mbps" }, "properties": [
-              { "id": "unit", "value": "Mbits" },
-              { "id": "custom.axisPlacement", "value": "left" },
-              { "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }
-          ] },
-          { "matcher": { "id": "byName", "options": "Llamadas activas" }, "properties": [
-              { "id": "unit", "value": "short" },
-              { "id": "custom.axisPlacement", "value": "right" },
-              { "id": "custom.axisLabel", "value": "calls" },
-              { "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }
-          ] }
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Tráfico Mbps"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "Mbits"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "left"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Llamadas activas"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "calls"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          }
         ]
       }
     },
@@ -175,99 +607,715 @@
       "id": 21,
       "type": "timeseries",
       "title": "Shaper: Tier en el tiempo",
-      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 12 },
-      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
-      "targets": [{ "expr": "ucgi_shaper_tier", "legendFormat": "tier", "refId": "A" }],
-      "fieldConfig": { "defaults": { "min": 0, "max": 3, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": 1 }, { "color": "yellow", "value": 2 }, { "color": "green", "value": 3 }] } } }
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 12
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ucgi-prom"
+      },
+      "targets": [
+        {
+          "expr": "ucgi_shaper_tier",
+          "legendFormat": "tier",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "yellow",
+                "value": 2
+              },
+              {
+                "color": "green",
+                "value": 3
+              }
+            ]
+          }
+        }
+      }
     },
     {
       "id": 22,
       "type": "timeseries",
       "title": "Required kbps proxima llamada",
-      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 12 },
-      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
-      "targets": [{ "expr": "ucgi_shaper_required_kbps", "legendFormat": "kbps", "refId": "A" }],
-      "fieldConfig": { "defaults": { "unit": "Kbits" } }
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 12
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ucgi-prom"
+      },
+      "targets": [
+        {
+          "expr": "ucgi_shaper_required_kbps",
+          "legendFormat": "kbps",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Kbits"
+        }
+      }
     },
     {
       "id": 30,
       "type": "timeseries",
       "title": "JVM Heap (integration-api)",
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 20 },
-      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 20
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ucgi-prom"
+      },
       "targets": [
-        { "expr": "sum(jvm_memory_used_bytes{job=\"integration-api\",area=\"heap\"})", "legendFormat": "heap used", "refId": "A" },
-        { "expr": "sum(jvm_memory_committed_bytes{job=\"integration-api\",area=\"heap\"})", "legendFormat": "heap committed", "refId": "B" },
-        { "expr": "sum(jvm_memory_max_bytes{job=\"integration-api\",area=\"heap\"})", "legendFormat": "heap max", "refId": "C" }
+        {
+          "expr": "sum(jvm_memory_used_bytes{job=\"integration-api\",area=\"heap\"})",
+          "legendFormat": "heap used",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(jvm_memory_committed_bytes{job=\"integration-api\",area=\"heap\"})",
+          "legendFormat": "heap committed",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(jvm_memory_max_bytes{job=\"integration-api\",area=\"heap\"})",
+          "legendFormat": "heap max",
+          "refId": "C"
+        }
       ],
-      "fieldConfig": { "defaults": { "unit": "bytes" } }
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        }
+      }
     },
     {
       "id": 31,
       "type": "timeseries",
       "title": "GC pause (integration-api)",
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 20 },
-      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
-      "targets": [{ "expr": "rate(jvm_gc_pause_seconds_sum{job=\"integration-api\"}[1m])", "legendFormat": "GC pause/s", "refId": "A" }],
-      "fieldConfig": { "defaults": { "unit": "s" } }
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 20
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ucgi-prom"
+      },
+      "targets": [
+        {
+          "expr": "rate(jvm_gc_pause_seconds_sum{job=\"integration-api\"}[1m])",
+          "legendFormat": "GC pause/s",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      }
     },
     {
       "id": 32,
       "type": "timeseries",
       "title": "Threads en uso",
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 20 },
-      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 20
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ucgi-prom"
+      },
       "targets": [
-        { "expr": "jvm_threads_live_threads{job=\"integration-api\"}", "legendFormat": "live", "refId": "A" },
-        { "expr": "jvm_threads_daemon_threads{job=\"integration-api\"}", "legendFormat": "daemon", "refId": "B" }
+        {
+          "expr": "jvm_threads_live_threads{job=\"integration-api\"}",
+          "legendFormat": "live",
+          "refId": "A"
+        },
+        {
+          "expr": "jvm_threads_daemon_threads{job=\"integration-api\"}",
+          "legendFormat": "daemon",
+          "refId": "B"
+        }
       ],
-      "fieldConfig": { "defaults": { "unit": "short" } }
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      }
     },
     {
       "id": 40,
       "type": "timeseries",
       "title": "Hikari: Conexiones DB",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
-      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ucgi-prom"
+      },
       "targets": [
-        { "expr": "hikaricp_connections_active{job=\"integration-api\"}", "legendFormat": "active", "refId": "A" },
-        { "expr": "hikaricp_connections_idle{job=\"integration-api\"}", "legendFormat": "idle", "refId": "B" },
-        { "expr": "hikaricp_connections_pending{job=\"integration-api\"}", "legendFormat": "pending", "refId": "C" }
+        {
+          "expr": "hikaricp_connections_active{job=\"integration-api\"}",
+          "legendFormat": "active",
+          "refId": "A"
+        },
+        {
+          "expr": "hikaricp_connections_idle{job=\"integration-api\"}",
+          "legendFormat": "idle",
+          "refId": "B"
+        },
+        {
+          "expr": "hikaricp_connections_pending{job=\"integration-api\"}",
+          "legendFormat": "pending",
+          "refId": "C"
+        }
       ]
     },
     {
       "id": 41,
       "type": "timeseries",
       "title": "Hikari: Latencia adquisicion + uso",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
-      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ucgi-prom"
+      },
       "targets": [
-        { "expr": "rate(hikaricp_connections_acquire_seconds_sum{job=\"integration-api\"}[5m]) / clamp_min(rate(hikaricp_connections_acquire_seconds_count{job=\"integration-api\"}[5m]), 1)", "legendFormat": "acquire avg", "refId": "A" },
-        { "expr": "rate(hikaricp_connections_usage_seconds_sum{job=\"integration-api\"}[5m]) / clamp_min(rate(hikaricp_connections_usage_seconds_count{job=\"integration-api\"}[5m]), 1)", "legendFormat": "usage avg", "refId": "B" }
+        {
+          "expr": "rate(hikaricp_connections_acquire_seconds_sum{job=\"integration-api\"}[5m]) / clamp_min(rate(hikaricp_connections_acquire_seconds_count{job=\"integration-api\"}[5m]), 1)",
+          "legendFormat": "acquire avg",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(hikaricp_connections_usage_seconds_sum{job=\"integration-api\"}[5m]) / clamp_min(rate(hikaricp_connections_usage_seconds_count{job=\"integration-api\"}[5m]), 1)",
+          "legendFormat": "usage avg",
+          "refId": "B"
+        }
       ],
-      "fieldConfig": { "defaults": { "unit": "s" } }
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      }
     },
     {
       "id": 50,
       "type": "timeseries",
       "title": "Prometheus scrape duration",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 },
-      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
-      "targets": [{ "expr": "scrape_duration_seconds", "legendFormat": "{{job}}@{{instance}}", "refId": "A" }],
-      "fieldConfig": { "defaults": { "unit": "s" } }
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 36
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ucgi-prom"
+      },
+      "targets": [
+        {
+          "expr": "scrape_duration_seconds",
+          "legendFormat": "{{job}}@{{instance}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      }
     },
     {
       "id": 51,
       "type": "table",
       "title": "Estado de targets",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 36 },
-      "datasource": { "type": "prometheus", "uid": "ucgi-prom" },
-      "targets": [{ "expr": "up", "refId": "A", "format": "table", "instant": true }],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 36
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ucgi-prom"
+      },
+      "targets": [
+        {
+          "expr": "up",
+          "refId": "A",
+          "format": "table",
+          "instant": true
+        }
+      ],
       "fieldConfig": {
         "defaults": {
-          "custom": { "align": "left", "displayMode": "color-background" },
-          "mappings": [{ "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }]
+          "custom": {
+            "align": "left",
+            "displayMode": "color-background"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "UP",
+                  "color": "green"
+                }
+              }
+            }
+          ]
         }
+      }
+    },
+    {
+      "id": 52,
+      "type": "stat",
+      "title": "SLI/SLO — Disponibilidad API",
+      "description": "SLO: up = 1. Verde si UP, rojo si DOWN.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 44
+      },
+      "targets": [
+        {
+          "expr": "up{job=\"integration-api\"}",
+          "refId": "A",
+          "legendFormat": "up"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red"
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "1": {
+                  "text": "UP",
+                  "color": "green"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "none"
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 53,
+      "type": "stat",
+      "title": "SLI/SLO — Latencia p95 vs SLO 200ms",
+      "description": "SLO: p95 < 200ms. Verde < 200, amarillo 200-500, rojo > 500.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 44
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by(le) (rate(http_server_requests_seconds_bucket{job=\"integration-api\"}[5m])))",
+          "refId": "A",
+          "legendFormat": "p95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.2
+              },
+              {
+                "color": "red",
+                "value": 0.5
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "s",
+          "decimals": 3
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 54,
+      "type": "stat",
+      "title": "SLI/SLO — Error rate vs SLO 5%",
+      "description": "SLO: errores 5xx < 5%. Verde < 1%, amarillo 1-5%, rojo > 5%.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 44
+      },
+      "targets": [
+        {
+          "expr": "(sum(rate(http_server_requests_seconds_count{status=~\"5..\",job=\"integration-api\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_server_requests_seconds_count{job=\"integration-api\"}[5m])), 0.001)",
+          "refId": "A",
+          "legendFormat": "5xx%"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.01
+              },
+              {
+                "color": "red",
+                "value": 0.05
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "percentunit",
+          "decimals": 2
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 55,
+      "type": "stat",
+      "title": "SLI/SLO — Tier shaper",
+      "description": "Tier de códec activo: 3=FULL, 2=MIXED, 1=DOWNGRADED, 0=EMERGENCY.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 44
+      },
+      "targets": [
+        {
+          "expr": "ucgi_shaper_tier",
+          "refId": "A",
+          "legendFormat": "tier"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "yellow",
+                "value": 2
+              },
+              {
+                "color": "green",
+                "value": 3
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "text": "EMERGENCY",
+                  "color": "red"
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "1": {
+                  "text": "DOWNGRADED",
+                  "color": "orange"
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "2": {
+                  "text": "MIXED",
+                  "color": "yellow"
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "3": {
+                  "text": "FULL",
+                  "color": "green"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 56,
+      "type": "timeseries",
+      "title": "Capacidad y umbral 70% (HU-08.2)",
+      "description": "Llamadas activas vs umbral del 70% del máximo teórico calculado por el shaper.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 48
+      },
+      "targets": [
+        {
+          "expr": "ucgi_shaper_active_calls",
+          "refId": "A",
+          "legendFormat": "Activas"
+        },
+        {
+          "expr": "ucgi_shaper_traffic_total_mbps",
+          "refId": "B",
+          "legendFormat": "Tráfico Mbps"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 35
+              },
+              {
+                "color": "red",
+                "value": 70
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "thresholdsStyle": {
+              "mode": "line"
+            },
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 57,
+      "type": "table",
+      "title": "Códec por sesión (placeholder)",
+      "description": "Tabla viva pendiente — requiere exporter Asterisk con métricas por sesión (HU-08.1 ampliada). Mientras tanto muestra el códec dominante actual.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 48
+      },
+      "targets": [
+        {
+          "expr": "ucgi_shaper_codec_info",
+          "refId": "A",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "codec"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 220
+              }
+            ]
+          }
+        ]
       }
     }
   ]
