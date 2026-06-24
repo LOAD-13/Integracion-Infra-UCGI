@@ -33,6 +33,7 @@ Fuente de las métricas en tiempo real:
 """
 import logging
 import os
+import subprocess
 import threading
 import time
 from typing import Optional
@@ -298,6 +299,76 @@ def update_bandwidth():
         return jsonify(error="mbps fuera de rango [0, 10000]"), 400
     _state["bandwidthMbps"] = mbps
     return jsonify(bandwidthMbps=mbps), 200
+
+
+# ============================================================================
+# HU-08.5 — endpoints de Linux Traffic Control para aplicar el shaping real.
+# Requieren capability NET_ADMIN en el contenedor (declarada en docker-compose).
+# Si el contenedor no tiene NET_ADMIN, las llamadas tc fallan con permission
+# denied y los endpoints devuelven 500 con el stderr de tc.
+# ============================================================================
+
+SHAPER_NIC = os.environ.get("UCGI_SHAPER_NIC", "eth0")
+_shaping_active = {"applied": False, "mbps": None}
+
+
+def _run_tc(args: list[str]) -> tuple[int, str, str]:
+    """Ejecuta `tc <args>` y devuelve (rc, stdout, stderr)."""
+    cmd = ["tc"] + args
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        return proc.returncode, proc.stdout, proc.stderr
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        return -1, "", str(exc)
+
+
+@app.post("/limit")
+def apply_limit():
+    """Aplica `tc qdisc tbf` para limitar BW en eth0."""
+    body = request.get_json(silent=True) or {}
+    try:
+        mbps = int(body["mbps"])
+    except (KeyError, ValueError):
+        return jsonify(error="Body inválido: se esperaba {'mbps': <int>}"), 400
+    if mbps <= 0 or mbps > 1000:
+        return jsonify(error="mbps fuera de rango (1, 1000]"), 400
+
+    # Limpiar qdisc previa (idempotente — ignora error si no existe).
+    _run_tc(["qdisc", "del", "dev", SHAPER_NIC, "root"])
+
+    rc, _, err = _run_tc([
+        "qdisc", "add", "dev", SHAPER_NIC, "root", "tbf",
+        "rate", f"{mbps}mbit", "burst", "32kbit", "latency", "400ms",
+    ])
+    if rc != 0:
+        return jsonify(
+            error="tc add falló",
+            stderr=err,
+            hint="¿Contenedor con cap_add NET_ADMIN?",
+        ), 500
+
+    _shaping_active.update(applied=True, mbps=mbps)
+    log.info("tc qdisc tbf aplicado a %s con rate=%dmbit", SHAPER_NIC, mbps)
+    return jsonify(mbps=mbps, applied=True, nic=SHAPER_NIC), 200
+
+
+@app.post("/reset")
+def reset_limit():
+    """Quita la qdisc raíz (sin shaping)."""
+    rc, _, err = _run_tc(["qdisc", "del", "dev", SHAPER_NIC, "root"])
+    if rc != 0 and "No such file" not in err and "RTNETLINK" not in err:
+        return jsonify(error="tc del falló", stderr=err), 500
+    _shaping_active.update(applied=False, mbps=None)
+    log.info("tc qdisc raíz removida de %s", SHAPER_NIC)
+    return jsonify(applied=False, nic=SHAPER_NIC), 200
+
+
+@app.get("/qdisc")
+def show_qdisc():
+    """Inspección — devuelve `tc qdisc show dev eth0`."""
+    rc, out, err = _run_tc(["qdisc", "show", "dev", SHAPER_NIC])
+    return jsonify(rc=rc, output=out.strip(), stderr=err.strip(),
+                   shaping=_shaping_active.copy())
 
 
 @app.post("/admin/active-calls")
