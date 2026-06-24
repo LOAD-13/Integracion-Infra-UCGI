@@ -109,6 +109,34 @@ public class MikoPbxRestClient {
         return calls;
     }
 
+    /**
+     * Devuelve los CDR (historial de llamadas) que MikoPBX guarda en su SQLite
+     * interno. El integration-api los importa periódicamente a {@code crm.cdr}
+     * para que los KPIs del CRM tengan datos reales.
+     * Endpoint: GET /pbxcore/api/v3/cdr
+     */
+    public List<MikoCdrRecord> listCdrRecords() {
+        JsonNode resp = sendJson("GET", "/pbxcore/api/v3/cdr", null);
+        if (!resp.path("result").asBoolean(false)) {
+            throw new MikoPbxException("Listar CDR falló: " + resp);
+        }
+        JsonNode records = resp.path("data").path("records");
+        List<MikoCdrRecord> out = new ArrayList<>();
+        if (records.isArray()) {
+            records.forEach(node -> out.add(new MikoCdrRecord(
+                    node.path("linkedid").asText(""),
+                    node.path("start").asText(""),
+                    node.path("src_num").asText(""),
+                    node.path("dst_num").asText(""),
+                    node.path("did").asText(""),
+                    node.path("disposition").asText(""),
+                    node.path("totalDuration").asInt(0),
+                    node.path("totalBillsec").asInt(0)
+            )));
+        }
+        return out;
+    }
+
     public void deleteEmployee(String id) {
         JsonNode resp = sendJson("DELETE", "/pbxcore/api/v3/employees/" + id, null);
         if (!resp.path("result").asBoolean(false)) {
@@ -134,6 +162,145 @@ public class MikoPbxRestClient {
             });
         }
         return numbers;
+    }
+
+    /**
+     * Sube un archivo de sonido al MikoPBX y lo deja reproducible por Asterisk.
+     * El flujo correcto descubierto vía probing de la API es:
+     * <ol>
+     *   <li>POST {@code /pbxcore/api/v3/files:upload} (multipart Resumable.js, un chunk) → devuelve path tmp.</li>
+     *   <li>POST {@code /pbxcore/api/v3/sound-files:convertAudioFile} con {@code temp_filename + name + category}
+     *       → MikoPBX convierte (a .webm para Asterisk) y mueve a {@code /storage/usbdisk1/mikopbx/media/custom/}.</li>
+     *   <li>POST {@code /pbxcore/api/v3/sound-files} con el path final → registra en BD para que aparezca en la GUI.</li>
+     * </ol>
+     * Sin el paso 2 el archivo queda en directorio temporal y Asterisk no lo
+     * puede reproducir (HTTP 410 / dialplan sin source).
+     */
+    public MikoSoundFile uploadSoundFile(byte[] content, String filename, String mimeType) {
+        String identifier = "ucgi-" + System.currentTimeMillis() + "-" + content.length;
+        String boundary = "----DialFlow" + System.nanoTime();
+        try {
+            byte[] body = buildResumableMultipart(boundary, identifier, filename, mimeType, content);
+            URI uri = URI.create(properties.baseUrl() + "/pbxcore/api/v3/files:upload");
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(uri)
+                    .timeout(Duration.ofMillis(properties.readTimeoutMs()))
+                    .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                    .header("Authorization", "Bearer " + getValidToken())
+                    .POST(HttpRequest.BodyPublishers.ofByteArray(body))
+                    .build();
+            HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+            JsonNode tree = mapper.readTree(resp.body());
+            if (!tree.path("result").asBoolean(false)) {
+                throw new MikoPbxException("Upload chunk falló: " + truncate(resp.body()));
+            }
+            String tempPath = tree.path("data").path("filename").asText("");
+            if (tempPath.isBlank()) {
+                throw new MikoPbxException("Upload chunk sin filename: " + truncate(resp.body()));
+            }
+
+            // MikoPBX hace MERGING asíncrono después del chunk upload (d_status). Si
+            // llamamos a convertAudioFile inmediatamente, `mv` adentro de MikoPBX
+            // falla en silencio y el convert posterior reporta "File not found".
+            // Reintentamos con backoff hasta 6s.
+            JsonNode conv = null;
+            for (int attempt = 0; attempt < 5; attempt++) {
+                Thread.sleep(500L + attempt * 500L);
+                conv = sendJson("POST", "/pbxcore/api/v3/sound-files:convertAudioFile", Map.of(
+                        "temp_filename", tempPath,
+                        "name", filename,
+                        "category", "custom"
+                ));
+                if (conv.path("result").asBoolean(false)) break;
+                String err = conv.path("messages").path("error").toString();
+                if (!err.contains("not found")) break; // otro error, no merece retry
+                log.debug("convertAudioFile retry {} ({})", attempt, err);
+            }
+            if (conv == null || !conv.path("result").asBoolean(false)) {
+                throw new MikoPbxException("convertAudioFile falló: " + conv);
+            }
+            JsonNode convData = conv.path("data");
+            String finalPath = convData.isArray() && convData.size() > 0
+                    ? convData.get(0).asText("")
+                    : convData.path("filename").asText("");
+            if (finalPath.isBlank()) {
+                throw new MikoPbxException("convertAudioFile sin path final: " + conv);
+            }
+
+            // Paso 3: registramos el sound-file con el path ya convertido.
+            JsonNode reg = sendJson("POST", "/pbxcore/api/v3/sound-files", Map.of(
+                    "name", filename,
+                    "category", "custom",
+                    "path", finalPath
+            ));
+            if (!reg.path("result").asBoolean(false)) {
+                throw new MikoPbxException("Registrar sound-file falló: " + reg);
+            }
+            JsonNode data = reg.path("data");
+            return new MikoSoundFile(
+                    data.path("id").asText(""),
+                    data.path("name").asText(filename),
+                    data.path("path").asText(finalPath),
+                    data.path("category").asText("custom"),
+                    data.path("fileSize").asLong(content.length),
+                    data.path("duration").asText("")
+            );
+        } catch (IOException e) {
+            throw new MikoPbxException("IO error subiendo sound-file: " + rootMessage(e), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new MikoPbxException("Upload sound-file interrumpido", e);
+        }
+    }
+
+    /** Devuelve el catálogo de sound files registrados en MikoPBX. */
+    public List<MikoSoundFile> listSoundFiles() {
+        JsonNode resp = sendJson("GET", "/pbxcore/api/v3/sound-files", null);
+        if (!resp.path("result").asBoolean(false)) {
+            throw new MikoPbxException("Listar sound-files falló: " + resp);
+        }
+        JsonNode data = resp.path("data");
+        List<MikoSoundFile> out = new ArrayList<>();
+        if (data.isArray()) {
+            data.forEach(n -> out.add(new MikoSoundFile(
+                    n.path("id").asText(""),
+                    n.path("name").asText(""),
+                    n.path("path").asText(""),
+                    n.path("category").asText(""),
+                    n.path("fileSize").asLong(0L),
+                    n.path("duration").asText("")
+            )));
+        }
+        return out;
+    }
+
+    private static byte[] buildResumableMultipart(String boundary, String identifier,
+                                                  String filename, String mimeType,
+                                                  byte[] content) throws IOException {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        Map<String, String> fields = new java.util.LinkedHashMap<>();
+        fields.put("resumableChunkNumber", "1");
+        fields.put("resumableChunkSize", String.valueOf(content.length));
+        fields.put("resumableCurrentChunkSize", String.valueOf(content.length));
+        fields.put("resumableTotalSize", String.valueOf(content.length));
+        fields.put("resumableType", mimeType);
+        fields.put("resumableIdentifier", identifier);
+        fields.put("resumableFilename", filename);
+        fields.put("resumableRelativePath", filename);
+        fields.put("resumableTotalChunks", "1");
+        for (Map.Entry<String, String> e : fields.entrySet()) {
+            out.write(("--" + boundary + "\r\n").getBytes());
+            out.write(("Content-Disposition: form-data; name=\"" + e.getKey() + "\"\r\n\r\n").getBytes());
+            out.write(e.getValue().getBytes());
+            out.write("\r\n".getBytes());
+        }
+        out.write(("--" + boundary + "\r\n").getBytes());
+        out.write(("Content-Disposition: form-data; name=\"file\"; filename=\"" + filename + "\"\r\n").getBytes());
+        out.write(("Content-Type: " + mimeType + "\r\n\r\n").getBytes());
+        out.write(content);
+        out.write("\r\n".getBytes());
+        out.write(("--" + boundary + "--\r\n").getBytes());
+        return out.toByteArray();
     }
 
     /** Sanity check rápido (no requiere auth — endpoint público de MikoPBX). */
