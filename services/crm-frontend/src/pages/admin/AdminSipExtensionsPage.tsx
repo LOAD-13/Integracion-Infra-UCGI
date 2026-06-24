@@ -186,8 +186,19 @@ function CreateDialog({ users, onClose, onSave }: { users: UserSummary[]; onClos
 }
 
 function generatePass(): string {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  let s = "";
-  for (let i = 0; i < 16; i++) s += chars[Math.floor(Math.random() * chars.length)];
-  return s;
+  // MikoPBX rechaza passwords débiles ("debe tener al menos fuerza regular").
+  // Forzamos al menos: 1 mayúscula, 1 minúscula, 1 dígito, 1 símbolo. Largo 16.
+  const upper = "ABCDEFGHJKMNPQRSTUVWXYZ";
+  const lower = "abcdefghjkmnpqrstuvwxyz";
+  const digits = "23456789";
+  const symbols = "!@#$%&*";
+  const all = upper + lower + digits + symbols;
+  const pick = (a: string) => a[Math.floor(Math.random() * a.length)]!;
+  const chars: string[] = [pick(upper), pick(lower), pick(digits), pick(symbols)];
+  for (let i = 0; i < 12; i++) chars.push(pick(all));
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [chars[i], chars[j]] = [chars[j]!, chars[i]!];
+  }
+  return chars.join("");
 }

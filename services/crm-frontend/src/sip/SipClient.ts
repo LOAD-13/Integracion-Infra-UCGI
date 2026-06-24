@@ -46,6 +46,14 @@ export class SipClient {
   private localStreamListener: StreamListener | null = null;
   private remoteStreamListener: StreamListener | null = null;
   private hookedPc: RTCPeerConnection | null = null;
+  /**
+   * Stream activo de la cámara que pedimos para esta llamada. Guardamos la
+   * referencia para poder stop()ear TODOS sus tracks al apagar el video — el
+   * problema es que el track del sender en el peer connection es una "vista"
+   * (a veces clonada) y stoppearlo solo a él NO apaga la LED de la cámara.
+   * Hay que stoppear el track ORIGINAL que vino de {@code getUserMedia}.
+   */
+  private cameraStream: MediaStream | null = null;
   private state: SipState = { ...INITIAL_STATE };
 
   constructor(config: SipConfig) {
@@ -66,26 +74,54 @@ export class SipClient {
   }
 
   async toggleVideo(): Promise<void> {
-    // Sin sesión establecida no podemos hacer re-INVITE — ignoramos el toggle
-    // para que la próxima llamada arranque limpia en solo-audio.
-    if (!this.session || this.state.call !== "connected") {
-      return;
-    }
+    if (!this.session || this.state.call !== "connected") return;
+    const pc = this.peerConnection();
+    if (!pc) return;
     const wantVideo = !this.state.videoEnabled;
     const wasMuted = this.state.muted;
+
     try {
+      // ¿Ya hay un sender de video activo (esta llamada ya prendió cámara antes)?
+      const videoSender = pc.getSenders().find(
+        (s) => s.track?.kind === "video",
+      );
+
+      if (videoSender) {
+        // SOFT MUTE — el track sigue vivo, solo cambiamos `enabled`. Esto envía
+        // frames negros inmediatos al peer (no frame congelado) y permite
+        // reactivar la cámara sin re-INVITE ni getUserMedia nuevo. Compromiso:
+        // la LED queda prendida (igual que Zoom/Teams en mute). Para apagar
+        // la LED hay que colgar la llamada.
+        if (videoSender.track) {
+          videoSender.track.enabled = wantVideo;
+        }
+        this.update({
+          videoEnabled: wantVideo,
+          cameraAvailable: true,
+        });
+        this.exposeLocalStream();
+        return;
+      }
+
+      // PRIMERA VEZ que se prende video en esta llamada — necesitamos hacer
+      // re-INVITE para negociar la sección m=video del SDP. sip.js pide el
+      // getUserMedia internamente.
+      if (!wantVideo) {
+        // No hay sender y querés apagar → ya está apagado, no hacer nada.
+        this.update({ videoEnabled: false });
+        return;
+      }
+
       await this.session.invite({
         sessionDescriptionHandlerOptions: {
-          constraints: { audio: true, video: wantVideo },
+          constraints: { audio: true, video: true },
         } as unknown as Record<string, unknown>,
       });
-      this.update({ videoEnabled: wantVideo, cameraAvailable: true });
-      // El re-INVITE creó nuevos senders. Reaplica mute y refresca streams.
+
+      this.update({ videoEnabled: true, cameraAvailable: true });
       this.exposeLocalStream();
       this.exposeRemoteStream();
-      if (wasMuted) {
-        this.setMuted(true);
-      }
+      if (wasMuted) this.setMuted(true);
     } catch (err) {
       this.update({
         cameraAvailable: false,
@@ -93,6 +129,7 @@ export class SipClient {
       });
     }
   }
+
 
   async connect(): Promise<void> {
     if (this.userAgent) return;
@@ -267,6 +304,11 @@ export class SipClient {
         break;
       case SessionState.Terminated:
         this.unhookPeerConnection();
+        // Stoppear cámara residual para no dejar la LED encendida tras colgar.
+        if (this.cameraStream) {
+          this.cameraStream.getTracks().forEach((t) => t.stop());
+          this.cameraStream = null;
+        }
         this.session = null;
         this.remoteStreamListener?.(null);
         this.localStreamListener?.(null);

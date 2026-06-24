@@ -9,9 +9,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
-import org.springframework.context.ApplicationEventPublisher;
 
 @Service
 public class SipExtensionService {
@@ -21,16 +18,13 @@ public class SipExtensionService {
     private final SipExtensionRepository sipExtensionRepository;
     private final UserRepository userRepository;
     private final AsteriskProvisioningService provisioningService;
-    private final ApplicationEventPublisher events;
 
     public SipExtensionService(SipExtensionRepository sipExtensionRepository,
                                UserRepository userRepository,
-                               AsteriskProvisioningService provisioningService,
-                               ApplicationEventPublisher events) {
+                               AsteriskProvisioningService provisioningService) {
         this.sipExtensionRepository = sipExtensionRepository;
         this.userRepository = userRepository;
         this.provisioningService = provisioningService;
-        this.events = events;
     }
 
     @Transactional
@@ -50,36 +44,36 @@ public class SipExtensionService {
 
         SipExtension saved = sipExtensionRepository.save(
                 new SipExtension(user.getId(), request.extensionNumber(), request.password()));
-        // Disparar provisioning Asterisk solo tras commit (evita crear extensión en
-        // MikoPBX si la transacción rollback). Ver @TransactionalEventListener abajo.
+
+        // Provisioning SINCRONO antes de devolver. Si MikoPBX rechaza (password
+        // débil, número ya tomado, etc) hacemos rollback para no dejar al admin
+        // con una extensión fantasma en el CRM. Antes era async post-commit y
+        // los fallos quedaban silenciados — el admin veía "ok" pero MikoPBX
+        // no tenía nada.
         String displayName = request.displayName() != null && !request.displayName().isBlank()
                 ? request.displayName() : user.getUsername();
-        events.publishEvent(new SipExtensionPersistedEvent(
-                saved.getExtensionNumber(), displayName, request.password()));
-        return SipExtensionResponse.of(saved, user.getUsername());
-    }
-
-    /**
-     * Listener post-commit: crea la extensión en MikoPBX vía REST (HU-03.8).
-     * Si MikoPBX está temporalmente caída, se loggea pero NO se propaga el error
-     * al caller — la persistencia en {@code crm.sip_extensions} ya tuvo éxito y
-     * la sincronización se reintenta en el próximo trigger.
-     */
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    void onPersisted(SipExtensionPersistedEvent event) {
         try {
             AsteriskProvisioningService.ProvisioningResult result =
                     provisioningService.provisionExtension(
-                            event.extensionNumber(), event.displayName(), event.sipPassword());
-            log.info("Provisioning MikoPBX para ext {}: success={}, intentos={}, mikoPbxId={}",
-                    event.extensionNumber(), result.success(), result.attempts(), result.mikoPbxId());
+                            saved.getExtensionNumber(), displayName, request.password());
+            if (!result.success()) {
+                throw new ResourceConflictException(
+                        "MikoPBX rechazó la creación de la extensión. Revisá que la "
+                        + "contraseña tenga mayúscula+minúscula+número+símbolo y "
+                        + "que el número no esté tomado.");
+            }
+            log.info("Provisioning MikoPBX OK para ext {}: mikoPbxId={}",
+                    saved.getExtensionNumber(), result.mikoPbxId());
+        } catch (ResourceConflictException e) {
+            throw e; // rollback automático por @Transactional, propaga al frontend
         } catch (RuntimeException ex) {
-            log.error("Provisioning MikoPBX falló para ext {} (no se propaga, persistencia OK)",
-                    event.extensionNumber(), ex);
+            log.error("Provisioning MikoPBX falló para ext {}, rollback",
+                    saved.getExtensionNumber(), ex);
+            throw new ResourceConflictException(
+                    "No se pudo provisionar en MikoPBX: " + ex.getMessage());
         }
-    }
 
-    public record SipExtensionPersistedEvent(String extensionNumber, String displayName, String sipPassword) {
+        return SipExtensionResponse.of(saved, user.getUsername());
     }
 
     @Transactional(readOnly = true)
@@ -114,8 +108,6 @@ public class SipExtensionService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Extension SIP no encontrada: " + id));
         sipExtensionRepository.delete(ext);
-        // Hint a MikoPBX para que limpie. No tenemos mikoPbxId persistido aun
-        // (deuda S5); por ahora intentamos por number.
         try {
             provisioningService.deprovisionExtension(ext.getExtensionNumber());
         } catch (RuntimeException ex) {
