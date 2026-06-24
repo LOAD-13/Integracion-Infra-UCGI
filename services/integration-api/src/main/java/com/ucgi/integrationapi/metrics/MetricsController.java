@@ -1,6 +1,7 @@
 package com.ucgi.integrationapi.metrics;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -13,6 +14,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/metrics")
 public class MetricsController {
 
+    // Los CDR que vienen de MikoPBX están en hora local del lab (Perú).
+    // Si calculamos LocalDate.now() con el TZ del container (UTC) y son las
+    // 00:00–05:00 UTC, los CDR de la jornada local quedan "ayer" y los KPI
+    // muestran 0. Forzamos la zona del lab.
+    private static final ZoneId LAB_ZONE = ZoneId.of("America/Lima");
+
     private final MetricsService service;
 
     public MetricsController(MetricsService service) {
@@ -24,7 +31,7 @@ public class MetricsController {
             Authentication auth,
             @RequestParam(value = "date", required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        LocalDate target = date != null ? date : LocalDate.now();
+        LocalDate target = date != null ? date : LocalDate.now(LAB_ZONE);
         return ResponseEntity.ok(service.computeForUser(auth.getName(), target));
     }
 
@@ -33,7 +40,7 @@ public class MetricsController {
     public ResponseEntity<AdminMetricsResponse> admin(
             @RequestParam(value = "date", required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        LocalDate target = date != null ? date : LocalDate.now();
+        LocalDate target = date != null ? date : LocalDate.now(LAB_ZONE);
         return ResponseEntity.ok(service.computeForAdmin(target));
     }
 }

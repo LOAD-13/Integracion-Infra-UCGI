@@ -1,5 +1,6 @@
 package com.ucgi.integrationapi.client;
 
+import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -9,6 +10,8 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface ClientRepository extends JpaRepository<Client, Long> {
+
+    Optional<Client> findFirstByPhone(String phone);
 
     /**
      * Búsqueda case-insensitive sobre nombre, teléfono, email o empresa con

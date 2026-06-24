@@ -14,6 +14,8 @@ public interface SipExtensionRepository extends JpaRepository<SipExtension, Long
 
     Optional<SipExtension> findByUserId(Long userId);
 
+    Optional<SipExtension> findByExtensionNumber(String extensionNumber);
+
     /**
      * Devuelve las extensiones habilitadas ordenadas ascendentemente por número.
      * El orden estable es crítico para la idempotencia de {@code pjsip.conf}.

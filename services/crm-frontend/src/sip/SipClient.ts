@@ -23,7 +23,19 @@ type StreamListener = (stream: MediaStream | null) => void;
  * Centraliza la lifecycle del {@link UserAgent}, expone el estado en un único
  * objeto {@link SipState} y notifica cambios mediante un listener. Encapsula
  * los detalles internos de sip.js (sesiones, transports) para que React solo
- * vea un API plano: connect, call, answer, hangup, mute, hold.
+ * vea un API plano: connect, call, answer, hangup, mute, hold, video.
+ *
+ * <p>Reglas de estado importantes:
+ * <ul>
+ *   <li>Cada llamada arranca SIEMPRE solo-audio. El video se prende explícitamente
+ *       con {@link #toggleVideo}, NO se persiste entre llamadas.</li>
+ *   <li>{@link #toggleVideo} hace re-INVITE para que el peer reciba/deje de recibir
+ *       el track; el mute previo se reaplica después porque el nuevo audio sender
+ *       trae enabled=true por defecto.</li>
+ *   <li>Los listeners del RTCPeerConnection ({@code track}, {@code negotiationneeded})
+ *       se suscriben con {@code addEventListener} para no pisar handlers internos
+ *       de sip.js.</li>
+ * </ul>
  */
 export class SipClient {
   private readonly config: SipConfig;
@@ -33,6 +45,7 @@ export class SipClient {
   private listener: Listener | null = null;
   private localStreamListener: StreamListener | null = null;
   private remoteStreamListener: StreamListener | null = null;
+  private hookedPc: RTCPeerConnection | null = null;
   private state: SipState = { ...INITIAL_STATE };
 
   constructor(config: SipConfig) {
@@ -53,20 +66,31 @@ export class SipClient {
   }
 
   async toggleVideo(): Promise<void> {
-    if (this.state.videoEnabled) {
-      this.update({ videoEnabled: false });
-      this.localStreamListener?.(null);
+    // Sin sesión establecida no podemos hacer re-INVITE — ignoramos el toggle
+    // para que la próxima llamada arranque limpia en solo-audio.
+    if (!this.session || this.state.call !== "connected") {
       return;
     }
+    const wantVideo = !this.state.videoEnabled;
+    const wasMuted = this.state.muted;
     try {
-      const probe = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: true,
+      await this.session.invite({
+        sessionDescriptionHandlerOptions: {
+          constraints: { audio: true, video: wantVideo },
+        } as unknown as Record<string, unknown>,
       });
-      this.localStreamListener?.(probe);
-      this.update({ videoEnabled: true, cameraAvailable: true });
-    } catch {
-      this.update({ videoEnabled: false, cameraAvailable: false });
+      this.update({ videoEnabled: wantVideo, cameraAvailable: true });
+      // El re-INVITE creó nuevos senders. Reaplica mute y refresca streams.
+      this.exposeLocalStream();
+      this.exposeRemoteStream();
+      if (wasMuted) {
+        this.setMuted(true);
+      }
+    } catch (err) {
+      this.update({
+        cameraAvailable: false,
+        errorMessage: err instanceof Error ? err.message : "No se pudo cambiar el video",
+      });
     }
   }
 
@@ -123,6 +147,7 @@ export class SipClient {
       await this.userAgent.stop();
       this.userAgent = null;
     }
+    this.unhookPeerConnection();
     this.update({ ...INITIAL_STATE });
   }
 
@@ -140,9 +165,10 @@ export class SipClient {
     }
     const inviter = new Inviter(this.userAgent, targetUri);
     this.attachOutgoing(inviter, cleaned);
+    // Cada llamada arranca solo-audio, sin importar el state previo.
     await inviter.invite({
       sessionDescriptionHandlerOptions: {
-        constraints: { audio: true, video: this.state.videoEnabled },
+        constraints: { audio: true, video: false },
       } as unknown as Record<string, unknown>,
     });
   }
@@ -150,9 +176,10 @@ export class SipClient {
   async answer(): Promise<void> {
     if (!this.session || this.state.call !== "incoming") return;
     if ("accept" in this.session && typeof this.session.accept === "function") {
+      // Contestamos solo-audio; el agente activa video con el botón si lo necesita.
       await (this.session as Invitation).accept({
         sessionDescriptionHandlerOptions: {
-          constraints: { audio: true, video: this.state.videoEnabled },
+          constraints: { audio: true, video: false },
         } as unknown as Record<string, unknown>,
       });
     }
@@ -227,14 +254,29 @@ export class SipClient {
   private handleSessionStateChange(state: SessionState): void {
     switch (state) {
       case SessionState.Established:
-        this.update({ call: "connected", muted: false });
+        // Llamada nueva: arranca limpia (audio sin mute, video apagado).
+        this.update({
+          call: "connected",
+          muted: false,
+          videoEnabled: false,
+          cameraAvailable: false,
+        });
+        this.hookPeerConnection();
         this.exposeRemoteStream();
+        this.exposeLocalStream();
         break;
       case SessionState.Terminated:
+        this.unhookPeerConnection();
         this.session = null;
         this.remoteStreamListener?.(null);
         this.localStreamListener?.(null);
-        this.update({ call: "idle", remoteIdentity: null, muted: false });
+        this.update({
+          call: "idle",
+          remoteIdentity: null,
+          muted: false,
+          videoEnabled: false,
+          cameraAvailable: false,
+        });
         break;
       default:
         break;
@@ -242,16 +284,64 @@ export class SipClient {
   }
 
   private exposeRemoteStream(): void {
-    const handler = this.session?.sessionDescriptionHandler as unknown as
-      | { peerConnection?: RTCPeerConnection }
-      | undefined;
-    const pc = handler?.peerConnection;
+    const pc = this.peerConnection();
     if (!pc) return;
     const remote = new MediaStream();
     pc.getReceivers().forEach((receiver) => {
       if (receiver.track) remote.addTrack(receiver.track);
     });
     this.remoteStreamListener?.(remote);
+  }
+
+  private exposeLocalStream(): void {
+    const pc = this.peerConnection();
+    if (!pc) return;
+    const local = new MediaStream();
+    pc.getSenders().forEach((sender) => {
+      if (sender.track) local.addTrack(sender.track);
+    });
+    this.localStreamListener?.(local);
+  }
+
+  /**
+   * Suscribe a track/negotiationneeded para que un re-INVITE (cuando el peer
+   * suma o quita video) re-emita los streams al React layer. Usamos
+   * addEventListener (no asignación directa a {@code ontrack}) para no pisar
+   * handlers internos de sip.js.
+   */
+  private hookPeerConnection(): void {
+    const pc = this.peerConnection();
+    if (!pc || pc === this.hookedPc) return;
+    this.unhookPeerConnection();
+    pc.addEventListener("track", this.onRtcTrack);
+    pc.addEventListener("negotiationneeded", this.onRtcRenegotiate);
+    this.hookedPc = pc;
+  }
+
+  private unhookPeerConnection(): void {
+    if (!this.hookedPc) return;
+    try {
+      this.hookedPc.removeEventListener("track", this.onRtcTrack);
+      this.hookedPc.removeEventListener("negotiationneeded", this.onRtcRenegotiate);
+    } catch {
+      // ignore — el peer connection ya puede estar cerrado
+    }
+    this.hookedPc = null;
+  }
+
+  private onRtcTrack = (): void => {
+    this.exposeRemoteStream();
+  };
+
+  private onRtcRenegotiate = (): void => {
+    this.exposeLocalStream();
+  };
+
+  private peerConnection(): RTCPeerConnection | undefined {
+    const handler = this.session?.sessionDescriptionHandler as unknown as
+      | { peerConnection?: RTCPeerConnection }
+      | undefined;
+    return handler?.peerConnection;
   }
 
   private setMuted(muted: boolean): void {
@@ -261,10 +351,7 @@ export class SipClient {
   }
 
   private localAudioTracks(): MediaStreamTrack[] {
-    const handler = this.session?.sessionDescriptionHandler as unknown as
-      | { peerConnection?: RTCPeerConnection }
-      | undefined;
-    const pc = handler?.peerConnection;
+    const pc = this.peerConnection();
     if (!pc) return [];
     return pc
       .getSenders()

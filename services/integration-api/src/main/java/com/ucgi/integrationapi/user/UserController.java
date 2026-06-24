@@ -77,6 +77,8 @@ public class UserController {
             String fullName,
             String role,
             boolean active,
+            String agentStatus,
+            Instant statusSince,
             Instant createdAt,
             /** Contraseña inicial autogenerada — null para list/update. Solo viene en create. */
             String generatedPassword

@@ -95,33 +95,42 @@ export function MetricsPage({ autoRefreshMs = 60000 }: MetricsPageProps = {}) {
         <AgentKpis metrics={agentMetrics} />
       )}
 
-      <div className="overflow-hidden rounded-2xl border border-df-border bg-df-surface p-5 shadow-[0_1px_2px_rgba(13,37,66,.04)]">
-        <div className="ff-display mb-1 text-[14.5px] font-bold text-df-text">
-          {isAdmin ? "Llamadas globales por hora" : "Llamadas por hora"}
+      <div className="grid gap-5 lg:grid-cols-[1.6fr_1fr]">
+        <div className="overflow-hidden rounded-2xl border border-df-border bg-df-surface p-5 shadow-[0_1px_2px_rgba(13,37,66,.04)]">
+          <div className="ff-display mb-1 text-[14.5px] font-bold text-df-text">
+            {isAdmin ? "Llamadas globales por hora" : "Llamadas por hora"}
+          </div>
+          <div className="mb-4 text-[12px] text-df-text-dim">Total vs. atendidas — buckets horarios del día.</div>
+          <div
+            data-testid="metrics-chart"
+            className="h-64 w-full"
+            role="img"
+            aria-label="Gráfico de líneas con llamadas totales y atendidas por hora"
+          >
+            {byHour.length > 0 && (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={byHour} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--df-border))" />
+                  <XAxis dataKey="hour" tickFormatter={(h) => `${h}h`} stroke="hsl(var(--df-text-dim))" />
+                  <YAxis allowDecimals={false} stroke="hsl(var(--df-text-dim))" />
+                  <Tooltip
+                    labelFormatter={(label) => `Hora ${label}:00`}
+                    formatter={(value, name) => [String(value), name === "total" ? "Totales" : "Atendidas"]}
+                  />
+                  <Line type="monotone" dataKey="total" stroke="hsl(var(--df-brand))" strokeWidth={2.5} dot={false} />
+                  <Line type="monotone" dataKey="answered" stroke="hsl(var(--df-call))" strokeWidth={2.5} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
         </div>
-        <div className="mb-4 text-[12px] text-df-text-dim">Total vs. atendidas — buckets horarios del día.</div>
-        <div
-          data-testid="metrics-chart"
-          className="h-64 w-full"
-          role="img"
-          aria-label="Gráfico de líneas con llamadas totales y atendidas por hora"
-        >
-          {byHour.length > 0 && (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={byHour} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--df-border))" />
-                <XAxis dataKey="hour" tickFormatter={(h) => `${h}h`} stroke="hsl(var(--df-text-dim))" />
-                <YAxis allowDecimals={false} stroke="hsl(var(--df-text-dim))" />
-                <Tooltip
-                  labelFormatter={(label) => `Hora ${label}:00`}
-                  formatter={(value, name) => [String(value), name === "total" ? "Totales" : "Atendidas"]}
-                />
-                <Line type="monotone" dataKey="total" stroke="hsl(var(--df-brand))" strokeWidth={2.5} dot={false} />
-                <Line type="monotone" dataKey="answered" stroke="hsl(var(--df-call))" strokeWidth={2.5} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </div>
+
+        {!isAdmin && agentMetrics && (
+          <OutcomeBreakdown metrics={agentMetrics} />
+        )}
+        {isAdmin && adminMetrics && (
+          <GlobalBreakdown metrics={adminMetrics} />
+        )}
       </div>
 
       {isAdmin && adminMetrics && (
@@ -274,6 +283,87 @@ function KpiGrid({
         );
       })}
     </section>
+  );
+}
+
+function OutcomeBreakdown({ metrics }: { metrics: AgentMetrics }) {
+  const total = metrics.totalCount || 1;
+  const rows = [
+    { label: "Atendidas", value: metrics.answeredCount, color: "hsl(var(--df-call))" },
+    { label: "No contestó", value: metrics.missedCount, color: "hsl(var(--df-st-offline))" },
+    { label: "Ocupado", value: metrics.busyCount, color: "hsl(var(--df-st-break))" },
+    { label: "Falló", value: metrics.failedCount, color: "hsl(var(--df-hang))" },
+  ];
+  return (
+    <div className="overflow-hidden rounded-2xl border border-df-border bg-df-surface p-5 shadow-[0_1px_2px_rgba(13,37,66,.04)]">
+      <div className="ff-display mb-1 text-[14.5px] font-bold text-df-text">Resultados</div>
+      <div className="mb-4 text-[12px] text-df-text-dim">Distribución por outcome del día.</div>
+      <div className="flex flex-col gap-3">
+        {rows.map((r) => {
+          const pct = Math.round((r.value / total) * 100);
+          return (
+            <div key={r.label}>
+              <div className="mb-1 flex items-center justify-between text-[12.5px] font-semibold">
+                <span className="text-df-text">{r.label}</span>
+                <span className="ff-mono text-df-text-muted">{r.value} · {pct}%</span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-df-surface-2">
+                <div className="h-full rounded-full" style={{ width: `${pct}%`, background: r.color }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function GlobalBreakdown({ metrics }: { metrics: AdminMetrics }) {
+  const occupancy = metrics.totalAgents > 0
+    ? Math.round((metrics.activeAgents / metrics.totalAgents) * 100)
+    : 0;
+  const slaColor = metrics.answerRate >= 0.9
+    ? "hsl(var(--df-call))"
+    : metrics.answerRate >= 0.7
+      ? "hsl(var(--df-st-break))"
+      : "hsl(var(--df-hang))";
+  return (
+    <div className="overflow-hidden rounded-2xl border border-df-border bg-df-surface p-5 shadow-[0_1px_2px_rgba(13,37,66,.04)]">
+      <div className="ff-display mb-1 text-[14.5px] font-bold text-df-text">SLA y ocupación</div>
+      <div className="mb-4 text-[12px] text-df-text-dim">Snapshot operacional en vivo.</div>
+      <div className="flex flex-col gap-4">
+        <div>
+          <div className="mb-1 flex items-center justify-between text-[12.5px] font-semibold">
+            <span className="text-df-text">SLA atención</span>
+            <span className="ff-mono" style={{ color: slaColor }}>
+              {Math.round(metrics.answerRate * 100)}%
+            </span>
+          </div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-df-surface-2">
+            <div className="h-full rounded-full"
+              style={{ width: `${Math.round(metrics.answerRate * 100)}%`, background: slaColor }} />
+          </div>
+        </div>
+        <div>
+          <div className="mb-1 flex items-center justify-between text-[12.5px] font-semibold">
+            <span className="text-df-text">Agentes disponibles</span>
+            <span className="ff-mono text-df-text-muted">
+              {metrics.activeAgents} / {metrics.totalAgents} · {occupancy}%
+            </span>
+          </div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-df-surface-2">
+            <div className="h-full rounded-full"
+              style={{ width: `${occupancy}%`, background: "hsl(var(--df-brand))" }} />
+          </div>
+        </div>
+        <div className="rounded-xl border border-df-border bg-df-surface-2 px-3 py-2">
+          <div className="text-[11.5px] font-semibold uppercase tracking-wider text-df-text-dim">
+            Llamadas perdidas
+          </div>
+          <div className="ff-display mt-1 text-[22px] font-bold text-df-text">{metrics.missedCalls}</div>
+        </div>
+      </div>
+    </div>
   );
 }
 

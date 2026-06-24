@@ -79,6 +79,34 @@ export function SipProvider({
     };
   }, [session, clientFactory, resetState]);
 
+  // F5 / cerrar pestaña: si hay una llamada activa, mostramos el prompt nativo
+  // ("¿Salir del sitio? Los cambios no se guardarán.") para que el usuario no
+  // pierda la llamada por accidente. Si confirma, mandamos el BYE en `pagehide`
+  // antes de que el WebSocket se cierre — sin esto la sesión del otro extremo
+  // queda colgada hasta el timeout de MikoPBX.
+  useEffect(() => {
+    const hasLiveCall = () =>
+      state.call === "connected" || state.call === "on-hold"
+      || state.call === "outgoing" || state.call === "incoming";
+
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!hasLiveCall()) return;
+      e.preventDefault();
+      // Required en Chrome para que el prompt aparezca.
+      e.returnValue = "Tenés una llamada en curso. Si recargás se cortará.";
+    };
+    const onPageHide = () => {
+      if (!hasLiveCall()) return;
+      try { void clientRef.current?.hangup(); } catch { /* best effort */ }
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      window.removeEventListener("pagehide", onPageHide);
+    };
+  }, [state.call]);
+
   const call = useCallback(async (target: string) => {
     await clientRef.current?.call(target);
   }, []);

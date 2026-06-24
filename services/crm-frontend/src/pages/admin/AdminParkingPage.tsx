@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import { ExternalLink, Plus, Save, Trash2 } from "lucide-react";
+import { ExternalLink, Loader2, Plus, Save, Sparkles, Trash2 } from "lucide-react";
 import { useAuth } from "@/auth/useAuth";
 import {
   createIvrOption,
   deleteIvrOption,
+  generateTts,
   getParkingConfig,
   listIvrOptions,
+  listMikoSoundFiles,
   updateParkingConfig,
+  type MikoSoundFile,
   type ParkingAction,
   type ParkingConfig,
   type ParkingIvrOption,
@@ -20,38 +23,32 @@ const ACTION_LABEL: Record<ParkingAction, string> = {
   TRANSFER_SKILL: "Transferir a skill",
 };
 
-// Archivos típicos del catálogo MikoPBX. El admin sube los suyos desde
-// http://localhost:8090 → Telefonía → Archivos de sonido (o Música en espera).
-const PRESET_GREETING_FILES: Array<{ label: string; value: string }> = [
-  { label: "— Sin locución —", value: "" },
-  { label: "Bienvenida estándar (es-ES)", value: "custom/welcome-es" },
-  { label: "Aviso 'todos los agentes ocupados'", value: "custom/all-agents-busy-es" },
-  { label: "Aviso 'fuera de horario'", value: "custom/out-of-hours-es" },
-];
-
-const PRESET_HOLD_MUSIC: Array<{ label: string; value: string }> = [
-  { label: "— Sin música —", value: "" },
-  { label: "The Calling — Angelwing", value: "moh/The_Calling_by_Angelwing.mp3" },
-  { label: "The Nymphaeum part V — Angelwing", value: "moh/The_Nymphaeum_part_V_Angelwing.mp3" },
-  { label: "Default MikoPBX", value: "default" },
-];
-
 export function AdminParkingPage() {
   const { session } = useAuth();
   const { push } = useToast();
   const [config, setConfig] = useState<ParkingConfig | null>(null);
   const [options, setOptions] = useState<ParkingIvrOption[]>([]);
+  const [soundFiles, setSoundFiles] = useState<MikoSoundFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [newKey, setNewKey] = useState("");
   const [newLabel, setNewLabel] = useState("");
   const [newAction, setNewAction] = useState<ParkingAction>("CALLBACK");
+  const [ttsText, setTtsText] = useState(
+    "Gracias por llamar. Todos nuestros agentes están ocupados. Por favor espere, su llamada es importante.",
+  );
+  const [ttsTarget, setTtsTarget] = useState<"greeting" | "moh">("greeting");
+  const [ttsBusy, setTtsBusy] = useState(false);
 
   const load = useCallback(async () => {
     if (!session) return;
     setLoading(true);
     try {
-      const [c, o] = await Promise.all([getParkingConfig(session.token), listIvrOptions(session.token)]);
-      setConfig(c); setOptions(o);
+      const [c, o, files] = await Promise.all([
+        getParkingConfig(session.token),
+        listIvrOptions(session.token),
+        listMikoSoundFiles(session.token).catch(() => [] as MikoSoundFile[]),
+      ]);
+      setConfig(c); setOptions(o); setSoundFiles(files);
     } finally { setLoading(false); }
   }, [session]);
 
@@ -91,6 +88,30 @@ export function AdminParkingPage() {
     }
   }
 
+  async function handleGenerateTts() {
+    if (!session || !config) return;
+    if (!ttsText.trim()) {
+      push({ title: "Escribí el texto del TTS primero", kind: "warn" });
+      return;
+    }
+    setTtsBusy(true);
+    try {
+      const created = await generateTts(session.token, ttsText.trim(), "es");
+      push({ title: "Audio generado y subido al MikoPBX", desc: created.name, kind: "ok" });
+      const ref = `miko-sound:${created.id}`;
+      const updated = ttsTarget === "greeting"
+        ? { ...config, greetingUrl: ref }
+        : { ...config, holdMusicUrl: ref };
+      setConfig(updated);
+      await updateParkingConfig(session.token, updated);
+      await load();
+    } catch (e) {
+      push({ title: "Error generando TTS", desc: (e as Error).message, kind: "warn" });
+    } finally {
+      setTtsBusy(false);
+    }
+  }
+
   if (loading || !config) return <p className="text-sm text-df-text-muted">Cargando…</p>;
 
   return (
@@ -108,19 +129,17 @@ export function AdminParkingPage() {
               className="h-10 w-full rounded-[10px] border border-df-border bg-df-surface-2 px-3 text-[14px] outline-none focus:border-df-brand" />
           </Field>
           <Field label="Locución inicial (archivo MikoPBX)">
-            <MediaFileInput
+            <SoundFileSelect
               value={config.greetingUrl ?? ""}
               onChange={(v) => setConfig({ ...config, greetingUrl: v || null })}
-              presets={PRESET_GREETING_FILES}
-              placeholder="custom/welcome-es o https://..."
+              soundFiles={soundFiles}
             />
           </Field>
           <Field label="Música en espera (archivo MikoPBX)">
-            <MediaFileInput
+            <SoundFileSelect
               value={config.holdMusicUrl ?? ""}
               onChange={(v) => setConfig({ ...config, holdMusicUrl: v || null })}
-              presets={PRESET_HOLD_MUSIC}
-              placeholder="moh/archivo.mp3 o https://..."
+              soundFiles={soundFiles}
             />
           </Field>
           <Field label={`Volumen ${config.volumePct}%`}>
@@ -149,6 +168,52 @@ export function AdminParkingPage() {
             className="flex h-10 items-center gap-1.5 rounded-[10px] border-0 bg-df-navy px-4 text-[13px] font-bold text-white hover:brightness-110">
             <Save className="h-4 w-4" aria-hidden />
             Guardar configuración
+          </button>
+        </div>
+      </Section>
+
+      <Section
+        title="Generar locución desde texto (TTS)"
+        hint="Convertimos el texto a audio con Google TTS y lo registramos como sound-file en MikoPBX."
+      >
+        <div className="flex flex-col gap-3 p-5">
+          <textarea
+            value={ttsText}
+            onChange={(e) => setTtsText(e.target.value)}
+            rows={3}
+            maxLength={1000}
+            placeholder="Texto que el llamante escuchará…"
+            className="w-full resize-y rounded-xl border border-df-border bg-df-surface-2 px-3.5 py-3 text-[14px] outline-none focus:border-df-brand"
+          />
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 text-[12.5px] text-df-text">
+              <input
+                type="radio"
+                name="tts-target"
+                checked={ttsTarget === "greeting"}
+                onChange={() => setTtsTarget("greeting")}
+              />
+              Aplicar como locución inicial
+            </label>
+            <label className="flex items-center gap-2 text-[12.5px] text-df-text">
+              <input
+                type="radio"
+                name="tts-target"
+                checked={ttsTarget === "moh"}
+                onChange={() => setTtsTarget("moh")}
+              />
+              Aplicar como música en espera
+            </label>
+            <span className="ml-auto text-[11.5px] text-df-text-dim">{ttsText.length}/1000</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleGenerateTts}
+            disabled={ttsBusy}
+            className="flex h-10 w-fit items-center gap-1.5 rounded-[10px] border-0 bg-df-navy px-4 text-[13px] font-bold text-white hover:brightness-110 disabled:opacity-60"
+          >
+            {ttsBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            Generar y aplicar
           </button>
         </div>
       </Section>
@@ -215,43 +280,51 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function MediaFileInput({
+function SoundFileSelect({
   value,
   onChange,
-  presets,
-  placeholder,
+  soundFiles,
 }: {
   value: string;
   onChange: (v: string) => void;
-  presets: Array<{ label: string; value: string }>;
-  placeholder: string;
+  soundFiles: MikoSoundFile[];
 }) {
-  const matchedPreset = presets.find((p) => p.value === value);
-  const showCustom = !matchedPreset;
+  const isMikoRef = value.startsWith("miko-sound:");
+  const mikoId = isMikoRef ? value.substring("miko-sound:".length) : null;
+  const matched = mikoId ? soundFiles.find((f) => f.id === mikoId) : null;
+  const shouldShowCustom = !!value && !isMikoRef;
+
   return (
     <div className="flex flex-col gap-2">
       <select
-        value={showCustom ? "__custom__" : value}
+        value={isMikoRef ? `miko:${mikoId}` : shouldShowCustom ? "__custom__" : ""}
         onChange={(e) => {
-          if (e.target.value === "__custom__") {
-            onChange(value || "custom/");
-          } else {
-            onChange(e.target.value);
-          }
+          const v = e.target.value;
+          if (v === "") onChange("");
+          else if (v === "__custom__") onChange("https://");
+          else if (v.startsWith("miko:")) onChange(`miko-sound:${v.substring(5)}`);
         }}
         className="h-10 w-full rounded-[10px] border border-df-border bg-df-surface-2 px-3 text-[14px] outline-none focus:border-df-brand"
       >
-        {presets.map((p) => (
-          <option key={p.value} value={p.value}>{p.label}</option>
+        <option value="">— Sin archivo —</option>
+        {soundFiles.map((f) => (
+          <option key={f.id} value={`miko:${f.id}`}>
+            {f.name} ({f.category}{f.duration ? ` · ${f.duration}` : ""})
+          </option>
         ))}
         <option value="__custom__">Custom / URL externa…</option>
       </select>
-      {showCustom && (
+      {matched && (
+        <div className="ff-mono text-[11px] text-df-text-dim">
+          {matched.path}
+        </div>
+      )}
+      {shouldShowCustom && (
         <input
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
+          placeholder="https://…"
           className="ff-mono h-10 w-full rounded-[10px] border border-df-border bg-df-surface-2 px-3 text-[13px] outline-none focus:border-df-brand"
         />
       )}

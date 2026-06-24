@@ -1,6 +1,10 @@
 package com.ucgi.integrationapi.parking;
 
+import com.ucgi.integrationapi.mikopbx.MikoPbxRestClient;
+import com.ucgi.integrationapi.mikopbx.MikoSoundFile;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,9 +24,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class ParkingController {
 
     private final ParkingService service;
+    private final ParkingTtsService ttsService;
+    private final MikoPbxRestClient miko;
 
-    public ParkingController(ParkingService service) {
+    public ParkingController(ParkingService service,
+                             ParkingTtsService ttsService,
+                             MikoPbxRestClient miko) {
         this.service = service;
+        this.ttsService = ttsService;
+        this.miko = miko;
     }
 
     @GetMapping
@@ -57,5 +67,26 @@ public class ParkingController {
     public ResponseEntity<Void> deleteOption(@PathVariable Long id) {
         service.deleteOption(id);
         return ResponseEntity.noContent().build();
+    }
+
+    /** Devuelve el catálogo de sound-files de MikoPBX para que el frontend
+     *  pueda elegir greeting/MoH desde un dropdown real. */
+    @GetMapping("/sound-files")
+    public ResponseEntity<List<MikoSoundFile>> listMikoSoundFiles() {
+        return ResponseEntity.ok(miko.listSoundFiles());
+    }
+
+    /** Genera un MP3 desde texto usando Google TTS y lo registra como
+     *  sound-file en MikoPBX. Devuelve el archivo creado. */
+    @PostMapping("/tts")
+    public ResponseEntity<MikoSoundFile> generateTts(@Valid @RequestBody TtsRequest req) {
+        MikoSoundFile sf = ttsService.generateAndUpload(req.text(), req.lang());
+        return ResponseEntity.status(HttpStatus.CREATED).body(sf);
+    }
+
+    public record TtsRequest(
+            @NotBlank @Size(max = 1000) String text,
+            @Size(max = 8) String lang
+    ) {
     }
 }
