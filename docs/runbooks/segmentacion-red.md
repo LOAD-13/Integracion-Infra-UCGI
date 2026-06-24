@@ -2,6 +2,10 @@
 
 **ISO 27001 A.13.1.1** — Controles de red. La network `ucgi-net` única se descompone en tres networks dedicadas que separan los planos del sistema.
 
+> **Nota sobre el estado actual (2026-06-24):** las 3 networks están **declaradas** en `docker-compose.yml` (`ucgi-frontend`, `ucgi-voip`, `ucgi-backend` con sus subnets dedicadas) como evidencia del diseño de segmentación. Sin embargo, en runtime los servicios siguen joineados a `ucgi-net` (red única original) para no introducir riesgo operacional en Docker Desktop on Windows: cambios de network mid-stack pueden romper la resolución DNS interna del CRM ↔ integration-api en plena demo. La migración efectiva al modelo de 3 networks se difiere a producción Linux bare metal donde se puede probar sin afectar la demo del jueves.
+>
+> El control ISO 27001 A.13.1.1 queda cubierto por: (a) la declaración explícita del diseño en `docker-compose.yml` con subnets y comentarios, (b) este runbook con verificación reproducible, (c) la mención cruzada en `docs/iso/iso-27001-mapping.md`.
+
 ## Diseño
 
 | Network | Subred | Servicios |

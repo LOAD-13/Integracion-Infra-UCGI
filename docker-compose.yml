@@ -21,7 +21,7 @@ services:
     # En dev, docker-compose.dev.yml mapea 13306 (host) -> 3306 (container)
     # para poder conectarse con clientes locales (DBeaver, mysql cli).
     networks:
-      - ucgi-backend
+      - ucgi-net
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MARIADB_ROOT_PASSWORD}"]
       interval: 10s
@@ -43,7 +43,7 @@ services:
     volumes:
       - midpoint-pg-data:/var/lib/postgresql/data
     networks:
-      - ucgi-backend
+      - ucgi-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${MP_DB_USER} -d midpoint"]
       interval: 10s
@@ -73,7 +73,7 @@ services:
     ports:
       - "8080:8080"
     networks:
-      - ucgi-backend
+      - ucgi-net
     depends_on:
       db:
         condition: service_healthy
@@ -122,7 +122,7 @@ services:
       - "8089:8089/tcp"                     # WSS para SIP.js (HU-07.2)
       - "10000-10200:10000-10200/udp"       # RTP (~100 llamadas concurrentes)
     networks:
-      - ucgi-voip
+      - ucgi-net
     healthcheck:
       test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://127.0.0.1:80/ || exit 1"]
       interval: 30s
@@ -185,8 +185,7 @@ services:
     ports:
       - "8081:8081"
     networks:
-      - ucgi-backend
-      - ucgi-voip
+      - ucgi-net
     depends_on:
       db:
         condition: service_healthy
@@ -214,7 +213,7 @@ services:
     container_name: ucgi-crm
     restart: unless-stopped
     networks:
-      - ucgi-frontend
+      - ucgi-net
     depends_on:
       - integration-api
 
@@ -236,8 +235,7 @@ services:
       - "80:80"
       - "443:443"
     networks:
-      - ucgi-frontend
-      - ucgi-backend
+      - ucgi-net
     depends_on:
       midpoint:
         condition: service_healthy
@@ -264,7 +262,7 @@ services:
     ports:
       - "9000:9000"
     networks:
-      - ucgi-backend
+      - ucgi-net
     depends_on:
       - sonar-db
 
@@ -279,7 +277,7 @@ services:
     volumes:
       - sonar-pg-data:/var/lib/postgresql/data
     networks:
-      - ucgi-backend
+      - ucgi-net
   # ===== Prometheus =====
   prometheus:
     image: prom/prometheus:latest
@@ -295,7 +293,7 @@ services:
     ports:
       - "9090:9090"
     networks:
-      - ucgi-backend
+      - ucgi-net
   # ===== Grafana =====
   grafana:
     image: grafana/grafana:latest
@@ -311,7 +309,7 @@ services:
     ports:
       - "3001:3000"
     networks:
-      - ucgi-backend
+      - ucgi-net
     depends_on:
       - prometheus
 
@@ -339,8 +337,7 @@ services:
     ports:
       - "9100:9100"
     networks:
-      - ucgi-voip
-      - ucgi-backend
+      - ucgi-net
 
 # ===== Networking =====
 # Red bridge dedicada para todo el stack UCGI. Todos los servicios joineen
@@ -363,6 +360,17 @@ networks:
   # `ucgi-backend` — refactor de membresías llega con HU-07.8 versión
   # completa en Sprint 4. Tenerlas declaradas evita romper el compose en
   # cuanto se haga el refactor real.
+  #
+  # ACTUALIZACIÓN (post HU-07.8 mergeada/revertida): el refactor real se
+  # realizó pero se revirtió por riesgo operacional — Docker Desktop on
+  # Windows puede romper DNS interno al recrear contenedores con networks
+  # nuevas. Los servicios siguen en `ucgi-net`. La segmentación queda
+  # documentada en `docs/runbooks/segmentacion-red.md` como diseño aplicable
+  # a producción Linux bare metal.
+  ucgi-net:
+    name: ucgi-net
+    driver: bridge
+
   ucgi-frontend:
     name: ucgi-frontend
     driver: bridge
