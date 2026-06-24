@@ -99,6 +99,12 @@ public class MetricsService {
                 CdrSpecifications.startedAfter(from)
                         .and(CdrSpecifications.startedBefore(to)));
 
+        // Mapeo extensión → user_id para poder sumar al callee en INTERNAL.
+        Map<String, Long> extToUser = new HashMap<>();
+        for (var ext : sipExtensionRepository.findAllByEnabledTrueOrderByExtensionNumberAsc()) {
+            extToUser.put(ext.getExtensionNumber(), ext.getUserId());
+        }
+
         long answered = 0;
         long missed = 0;
         long totalDur = 0;
@@ -109,29 +115,44 @@ public class MetricsService {
         for (Cdr c : cdrs) {
             int hour = c.getStartTime() != null ? c.getStartTime().getHour() : 0;
             long[] bucket = hourly.computeIfAbsent(hour, k -> new long[2]);
-            bucket[0]++;
 
-            long[] agentAcc = c.getAgentUserId() != null
-                    ? perAgent.computeIfAbsent(c.getAgentUserId(), k -> new long[3])
-                    : null;
-            if (agentAcc != null) agentAcc[0]++;
+            // Agentes involucrados en esta llamada: el agent_user_id explícito
+            // (caller, asignado por CdrSyncService) y para INTERNAL también el
+            // callee si su extensión está mapeada a un user.
+            java.util.Set<Long> involved = new java.util.HashSet<>();
+            if (c.getAgentUserId() != null) involved.add(c.getAgentUserId());
+            if (c.getDirection() == Cdr.Direction.INTERNAL) {
+                Long calleeUser = extToUser.get(c.getCalleeNumber());
+                if (calleeUser != null) involved.add(calleeUser);
+            }
 
-            if (c.getDisposition() == Cdr.Disposition.ANSWERED) {
-                answered++;
-                totalDur += c.getDurationSeconds();
-                bucket[1]++;
-                if (agentAcc != null) {
+            for (Long userId : involved) {
+                long[] agentAcc = perAgent.computeIfAbsent(userId, k -> new long[3]);
+                agentAcc[0]++;
+                if (c.getDisposition() == Cdr.Disposition.ANSWERED) {
                     agentAcc[1]++;
                     agentAcc[2] += c.getDurationSeconds();
                 }
+            }
+
+            // Suma de participaciones (coherente con el ranking): cada agente
+            // involucrado cuenta como una llamada. INTERNAL → 2, INBOUND/OUTBOUND
+            // sin agente → 1 (para no perder la llamada).
+            int participants = Math.max(involved.size(), 1);
+            bucket[0] += participants;
+
+            if (c.getDisposition() == Cdr.Disposition.ANSWERED) {
+                answered += participants;
+                totalDur += (long) c.getDurationSeconds() * participants;
+                bucket[1] += participants;
             } else if (c.getDisposition() == Cdr.Disposition.NO_ANSWER
                     || c.getDisposition() == Cdr.Disposition.BUSY
                     || c.getDisposition() == Cdr.Disposition.FAILED) {
-                missed++;
+                missed += participants;
             }
         }
 
-        long total = cdrs.size();
+        long total = answered + missed;
         double avg = answered > 0 ? (double) totalDur / answered : 0;
         double rate = total > 0 ? (double) answered / total : 0;
 

@@ -43,4 +43,19 @@ public class MetricsController {
         LocalDate target = date != null ? date : LocalDate.now(LAB_ZONE);
         return ResponseEntity.ok(service.computeForAdmin(target));
     }
+
+    /**
+     * Métricas del agente identificado por {@code username} — pensado para que
+     * el admin filtre el ranking en {@code /metrics} y vea byHour del agente
+     * seleccionado (no global). Sólo accesible para admin.
+     */
+    @GetMapping("/agent/by-username")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<AgentMetricsResponse> agentByUsername(
+            @RequestParam("username") String username,
+            @RequestParam(value = "date", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        LocalDate target = date != null ? date : LocalDate.now(LAB_ZONE);
+        return ResponseEntity.ok(service.computeForUser(username, target));
+    }
 }

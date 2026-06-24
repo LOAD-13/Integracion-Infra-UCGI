@@ -72,3 +72,19 @@ export async function fetchAdminMetrics(
   if (!response.ok) throw await parseError(response);
   return (await response.json()) as AdminMetrics;
 }
+
+/** Métricas del agente especificado — solo accesible para admin. */
+export async function fetchAgentMetricsByUsername(
+  token: string,
+  username: string,
+  date?: string,
+): Promise<AgentMetrics> {
+  const params = new URLSearchParams({ username });
+  if (date) params.set("date", date);
+  const response = await authorizedFetch(
+    token,
+    `/v1/metrics/agent/by-username?${params.toString()}`,
+  );
+  if (!response.ok) throw await parseError(response);
+  return (await response.json()) as AgentMetrics;
+}
