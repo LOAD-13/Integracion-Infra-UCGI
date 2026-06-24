@@ -32,18 +32,24 @@ public class MaskingConverter extends ClassicConverter {
      * grupo {@code 1} para que la sustitución preserve el prefijo identificador
      * que da contexto al humano que lee el log.
      */
+    /**
+     * Orden importa: las versiones JSON (con comillas) corren primero, así su
+     * resultado {@code key":"***"} no es re-matched por la versión key=value
+     * (que excluye {@code "} del valor capturado para no romper el JSON ya
+     * enmascarado).
+     */
     private static final List<Pattern> PATTERNS = List.of(
         Pattern.compile("(?i)(password\\s*[=:]\\s*\")[^\"]+(\")"),
-        Pattern.compile("(?i)(password\\s*[=:]\\s*)[^\\s,;}]+"),
+        Pattern.compile("(?i)(password\\s*[=:]\\s*)([^\\s\",;}]+)"),
         Pattern.compile("(?i)(sip_secret\\s*[=:]\\s*\")[^\"]+(\")"),
-        Pattern.compile("(?i)(sip_secret\\s*[=:]\\s*)[^\\s,;}]+"),
+        Pattern.compile("(?i)(sip_secret\\s*[=:]\\s*)([^\\s\",;}]+)"),
         Pattern.compile("(?i)(api[_-]?key\\s*[=:]\\s*\")[^\"]+(\")"),
-        Pattern.compile("(?i)(api[_-]?key\\s*[=:]\\s*)[^\\s,;}]+"),
+        Pattern.compile("(?i)(api[_-]?key\\s*[=:]\\s*)([^\\s\",;}]+)"),
         Pattern.compile("(?i)(authorization:\\s*bearer\\s+)[A-Za-z0-9._\\-+/=]+"),
         Pattern.compile("(?i)(authorization:\\s*basic\\s+)[A-Za-z0-9+/=]+"),
         Pattern.compile("(?i)(x-api-key:\\s*)[^\\s]+"),
         Pattern.compile("(?i)(admin[_-]?password\\s*[=:]\\s*\")[^\"]+(\")"),
-        Pattern.compile("(?i)(admin[_-]?password\\s*[=:]\\s*)[^\\s,;}]+")
+        Pattern.compile("(?i)(admin[_-]?password\\s*[=:]\\s*)([^\\s\",;}]+)")
     );
 
     @Override
