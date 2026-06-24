@@ -147,7 +147,7 @@
       "id": 3,
       "type": "stat",
       "title": "Codec actual",
-      "description": "Codec elegido por el shaper para la próxima llamada según BW + concurrencia. opus_24+vp8 (FULL), opus_24 (MIXED), g729 (DOWNGRADED), reject (EMERGENCY).",
+      "description": "Códec elegido por el shaper según BW disponible. Los 5 codecs contemplados en el lab son: G.711 alaw, G.711 ulaw, GSM, G.729, Opus.",
       "gridPos": {
         "h": 4,
         "w": 4,
@@ -181,7 +181,59 @@
               }
             ]
           },
-          "noValue": "sin dato"
+          "noValue": "sin dato",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "alaw": {
+                  "text": "G.711 alaw",
+                  "color": "green",
+                  "index": 0
+                },
+                "ulaw": {
+                  "text": "G.711 ulaw",
+                  "color": "green",
+                  "index": 1
+                },
+                "gsm": {
+                  "text": "GSM",
+                  "color": "yellow",
+                  "index": 2
+                },
+                "g729": {
+                  "text": "G.729",
+                  "color": "orange",
+                  "index": 3
+                },
+                "opus": {
+                  "text": "Opus",
+                  "color": "blue",
+                  "index": 4
+                },
+                "opus_24": {
+                  "text": "Opus 24kbps",
+                  "color": "blue",
+                  "index": 5
+                },
+                "opus_16": {
+                  "text": "Opus 16kbps",
+                  "color": "yellow",
+                  "index": 6
+                },
+                "opus_24+vp8": {
+                  "text": "Opus+VP8",
+                  "color": "blue",
+                  "index": 7
+                },
+                "g729+h264": {
+                  "text": "G.729+H264",
+                  "color": "orange",
+                  "index": 8
+                }
+              }
+            }
+          ]
         },
         "overrides": [
           {
@@ -919,7 +971,7 @@
       "description": "SLO: up = 1. Verde si UP, rojo si DOWN.",
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "ucgi-prom"
       },
       "gridPos": {
         "h": 4,
@@ -996,7 +1048,7 @@
       "description": "SLO: p95 < 200ms. Verde < 200, amarillo 200-500, rojo > 500.",
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "ucgi-prom"
       },
       "gridPos": {
         "h": 4,
@@ -1055,7 +1107,7 @@
       "description": "SLO: errores 5xx < 5%. Verde < 1%, amarillo 1-5%, rojo > 5%.",
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "ucgi-prom"
       },
       "gridPos": {
         "h": 4,
@@ -1113,7 +1165,7 @@
       "description": "Tier de códec activo: 3=FULL, 2=MIXED, 1=DOWNGRADED, 0=EMERGENCY.",
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "ucgi-prom"
       },
       "gridPos": {
         "h": 4,
@@ -1211,7 +1263,7 @@
       "description": "Llamadas activas vs umbral del 70% del máximo teórico calculado por el shaper.",
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "ucgi-prom"
       },
       "gridPos": {
         "h": 8,
@@ -1276,11 +1328,11 @@
     {
       "id": 57,
       "type": "table",
-      "title": "Códec por sesión (placeholder)",
-      "description": "Tabla viva pendiente — requiere exporter Asterisk con métricas por sesión (HU-08.1 ampliada). Mientras tanto muestra el códec dominante actual.",
+      "title": "Códec dominante (5 codecs contemplados)",
+      "description": "Códec actualmente elegido por el shaper. Los 5 codecs del lab: G.711 alaw (8000 Hz, 64 kbps), G.711 ulaw (8000 Hz, 64 kbps), GSM (8000 Hz, 13 kbps), G.729 (8000 Hz, 8 kbps), Opus (48000 Hz, 24/16 kbps). Tabla por sesión real requiere exporter Asterisk (HU-09.x).",
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "ucgi-prom"
       },
       "gridPos": {
         "h": 8,
@@ -1312,6 +1364,22 @@
               {
                 "id": "custom.width",
                 "value": 220
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "codec"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Códec activo"
+              },
+              {
+                "id": "custom.width",
+                "value": 250
               }
             ]
           }

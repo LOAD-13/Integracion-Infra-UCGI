@@ -82,15 +82,27 @@ groups:
     interval: 30s
     rules:
       - alert: BandwidthSaturated
-        # active calls supera el 70% del teórico → tier downgrade inminente.
-        expr: ucgi_shaper_active_calls / ucgi_shaper_max_calls_theoretical > 0.7
+        # Tráfico total (RX+TX en eth0) supera el 70% del bandwidth declarado.
+        # Las dos métricas las expone el ucgi-shaper en /metrics.
+        expr: ucgi_shaper_traffic_total_mbps / ucgi_shaper_bandwidth_mbps > 0.7
         for: 3m
         labels:
           severity: warning
           sli: capacity
         annotations:
-          summary: "Llamadas activas > 70% del máximo teórico"
+          summary: "Tráfico > 70% del BW capacity por > 3 min"
           description: "Tier puede caer a DOWNGRADED o restringir nuevas llamadas."
+
+      - alert: SourceShaperUnhealthy
+        # El shaper no pudo leer MikoPBX en su último intento — métricas
+        # activeCalls/required_kbps están frías.
+        expr: ucgi_shaper_source_healthy == 0
+        for: 2m
+        labels:
+          severity: warning
+          sli: capacity
+        annotations:
+          summary: "Shaper no consigue leer MikoPBX (active calls = stale)"
 
       - alert: CodecDowngradeForced
         expr: ucgi_shaper_tier == 2
