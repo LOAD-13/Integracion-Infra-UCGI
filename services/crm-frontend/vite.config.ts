@@ -29,5 +29,28 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: "./src/setupTests.ts",
     css: false,
+    coverage: {
+      // HU-06.3 (IUDCYGI-39): cobertura TS con provider v8 nativo y formatos
+      // text (resumen consola), html (browseable), lcov (sonar-scanner), json-summary
+      // (badges + scripts). Thresholds bajos en baseline; HU-06.5 documenta
+      // como ISO 25010 Fiabilidad/Madurez.
+      provider: "v8",
+      reporter: ["text", "html", "lcov", "json-summary"],
+      reportsDirectory: "./coverage",
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: [
+        "src/main.tsx",
+        "src/**/*.d.ts",
+        "src/tests/**",
+        "src/**/__tests__/**",
+        "src/setupTests.ts",
+      ],
+      thresholds: {
+        lines: 12,
+        functions: 25,
+        statements: 12,
+        branches: 50,
+      },
+    },
   },
 });

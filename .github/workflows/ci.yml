@@ -111,7 +111,17 @@ jobs:
         if: steps.detect.outputs.exists == 'true'
         working-directory: services/crm-frontend
         run: npm ci
-      - name: Run tests
+      # HU-06.3 (IUDCYGI-39): vitest con provider v8 emite lcov + html + json-summary
+      # para Sonar y para revisión humana. Thresholds en vite.config.ts.
+      - name: Run tests with coverage
         if: steps.detect.outputs.exists == 'true'
         working-directory: services/crm-frontend
-        run: npm test
+        run: npm run test:coverage
+      - name: Upload Vitest coverage report
+        if: steps.detect.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-coverage
+          path: services/crm-frontend/coverage/
+          if-no-files-found: warn
+          retention-days: 7
