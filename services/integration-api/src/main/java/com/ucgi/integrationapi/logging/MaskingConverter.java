@@ -38,17 +38,27 @@ public class MaskingConverter extends ClassicConverter {
      * (que excluye {@code "} del valor capturado para no romper el JSON ya
      * enmascarado).
      */
+    /**
+     * Orden importa: las versiones JSON-estrictas ({@code "key":"value"}) corren
+     * primero. Las versiones key=value excluyen {@code "} del valor capturado
+     * para no romper JSON ya enmascarado.
+     */
     private static final List<Pattern> PATTERNS = List.of(
-        Pattern.compile("(?i)(password\\s*[=:]\\s*\")[^\"]+(\")"),
+        // password: JSON-strict (con comillas) + key=value
+        Pattern.compile("(?i)(\"password\"\\s*:\\s*\")[^\"]+(\")"),
         Pattern.compile("(?i)(password\\s*[=:]\\s*)[^\\s\",;}]+"),
-        Pattern.compile("(?i)(sip_secret\\s*[=:]\\s*\")[^\"]+(\")"),
+        // sip_secret
+        Pattern.compile("(?i)(\"sip_secret\"\\s*:\\s*\")[^\"]+(\")"),
         Pattern.compile("(?i)(sip_secret\\s*[=:]\\s*)[^\\s\",;}]+"),
-        Pattern.compile("(?i)(api[_-]?key\\s*[=:]\\s*\")[^\"]+(\")"),
+        // api_key / apiKey / api-key
+        Pattern.compile("(?i)(\"api[_-]?key\"\\s*:\\s*\")[^\"]+(\")"),
         Pattern.compile("(?i)(api[_-]?key\\s*[=:]\\s*)[^\\s\",;}]+"),
+        // Authorization / X-Api-Key headers
         Pattern.compile("(?i)(authorization:\\s*bearer\\s+)[A-Za-z0-9._\\-+/=]+"),
         Pattern.compile("(?i)(authorization:\\s*basic\\s+)[A-Za-z0-9+/=]+"),
         Pattern.compile("(?i)(x-api-key:\\s*)[^\\s]+"),
-        Pattern.compile("(?i)(admin[_-]?password\\s*[=:]\\s*\")[^\"]+(\")"),
+        // adminPassword / mikoPbxAdminPassword / admin_password
+        Pattern.compile("(?i)(\"admin[_-]?password\"\\s*:\\s*\")[^\"]+(\")"),
         Pattern.compile("(?i)(admin[_-]?password\\s*[=:]\\s*)[^\\s\",;}]+")
     );
 
