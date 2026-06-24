@@ -40,16 +40,16 @@ public class MaskingConverter extends ClassicConverter {
      */
     private static final List<Pattern> PATTERNS = List.of(
         Pattern.compile("(?i)(password\\s*[=:]\\s*\")[^\"]+(\")"),
-        Pattern.compile("(?i)(password\\s*[=:]\\s*)([^\\s\",;}]+)"),
+        Pattern.compile("(?i)(password\\s*[=:]\\s*)[^\\s\",;}]+"),
         Pattern.compile("(?i)(sip_secret\\s*[=:]\\s*\")[^\"]+(\")"),
-        Pattern.compile("(?i)(sip_secret\\s*[=:]\\s*)([^\\s\",;}]+)"),
+        Pattern.compile("(?i)(sip_secret\\s*[=:]\\s*)[^\\s\",;}]+"),
         Pattern.compile("(?i)(api[_-]?key\\s*[=:]\\s*\")[^\"]+(\")"),
-        Pattern.compile("(?i)(api[_-]?key\\s*[=:]\\s*)([^\\s\",;}]+)"),
+        Pattern.compile("(?i)(api[_-]?key\\s*[=:]\\s*)[^\\s\",;}]+"),
         Pattern.compile("(?i)(authorization:\\s*bearer\\s+)[A-Za-z0-9._\\-+/=]+"),
         Pattern.compile("(?i)(authorization:\\s*basic\\s+)[A-Za-z0-9+/=]+"),
         Pattern.compile("(?i)(x-api-key:\\s*)[^\\s]+"),
         Pattern.compile("(?i)(admin[_-]?password\\s*[=:]\\s*\")[^\"]+(\")"),
-        Pattern.compile("(?i)(admin[_-]?password\\s*[=:]\\s*)([^\\s\",;}]+)")
+        Pattern.compile("(?i)(admin[_-]?password\\s*[=:]\\s*)[^\\s\",;}]+")
     );
 
     @Override
