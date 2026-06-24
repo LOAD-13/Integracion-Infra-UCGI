@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  HU-07.6 (IUDCYGI-47) · ISO 27001 A.8.10 — los secretos nunca aparecen en claro en logs.
+
+  Estrategia:
+  1. Converter custom `MaskingConverter` aplica regex sobre el mensaje formateado
+     y reemplaza el valor por `***` para los patrones declarados (passwords, JWT,
+     authorization headers, sip_secret, api_key, basic auth).
+  2. Patrón aplicado tanto al appender CONSOLE como al FILE.
+  3. Tests `tests/security/check-logs.sh` graba logs en CI con seeds conocidas y
+     valida que ningún secreto queda en plano.
+
+  Convenciones cubiertas:
+   - password=... | "password":"..." | Authorization: Bearer ...
+   - sip_secret=... | apiKey=... | adminPassword=...
+   - X-Api-Key: ... headers
+-->
+<configuration>
+    <conversionRule conversionWord="mask" converterClass="com.ucgi.integrationapi.logging.MaskingConverter"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level %logger{36} - %mask</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>

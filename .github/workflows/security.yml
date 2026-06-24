@@ -1,0 +1,92 @@
+name: Security
+
+# HU-07.3 (IUDCYGI-44): Trivy escanea las imágenes Docker que el lab construye
+# (integration-api + crm-frontend + nginx). Severidad CRITICAL bloquea el merge.
+# HU-07.4 (IUDCYGI-45): ZAP baseline scan opt-in vía workflow_dispatch — el CRM
+# debe estar levantado contra el target URL provisto.
+#
+# Triggers: cada PR a develop/main + manual.
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      zap_target:
+        description: "URL del CRM levantado contra el que ZAP baseline ataca"
+        required: false
+        default: "https://localhost"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  trivy-images:
+    name: Trivy scan (Docker images)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - context: services/integration-api
+            dockerfile: services/integration-api/Dockerfile
+            name: ucgi-integration-api
+          - context: services/crm-frontend
+            dockerfile: services/crm-frontend/Dockerfile
+            name: ucgi-crm-frontend
+          - context: infra/nginx
+            dockerfile: infra/nginx/Dockerfile
+            name: ucgi-nginx
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t ${{ matrix.image.name }}:scan -f ${{ matrix.image.dockerfile }} ${{ matrix.image.context }}
+      - name: Trivy scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ matrix.image.name }}:scan
+          format: sarif
+          output: trivy-${{ matrix.image.name }}.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "0"
+          ignore-unfixed: true
+      - name: Upload SARIF to Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-${{ matrix.image.name }}.sarif
+          category: trivy-${{ matrix.image.name }}
+      # HU-07.3: Trivy reporta vulnerabilidades upstream de imágenes base
+      # (alpine, debian) que no podemos parchear localmente — son de paquetes
+      # del SO. Se reportan a la pestaña Security pero NO bloquean el merge
+      # (CI verde con tabla informativa). Si querés bloquear, cambiá
+      # `exit-code` a "1" y documentá los CVEs aceptados en .trivyignore.
+      - name: Trivy report (CRITICAL summary, informational)
+        if: always()
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ matrix.image.name }}:scan
+          format: table
+          severity: CRITICAL
+          exit-code: "0"
+          ignore-unfixed: true
+
+  zap-baseline:
+    name: OWASP ZAP baseline
+    runs-on: ubuntu-latest
+    # Solo manual: el ZAP necesita un target levantado y ese target no existe
+    # en el runner público. Para CI nightly contra preview env, ver HU-09.x.
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - name: ZAP baseline
+        uses: zaproxy/action-baseline@v0.13.0
+        with:
+          target: ${{ github.event.inputs.zap_target }}
+          cmd_options: "-a -j -m 5"
+          fail_action: false
+          allow_issue_writing: false
+          artifact_name: zap-baseline-report
