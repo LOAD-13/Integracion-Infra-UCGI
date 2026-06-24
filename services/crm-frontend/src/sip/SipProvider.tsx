@@ -3,6 +3,7 @@ import { authorizedFetch } from "@/api/client";
 import { useAuth } from "@/auth/useAuth";
 import { SipClient } from "./SipClient";
 import { SipContext } from "./sip-context";
+import { useRingtone } from "./useRingtone";
 import {
   INITIAL_STATE,
   type SipConfig,
@@ -106,6 +107,8 @@ export function SipProvider({
       window.removeEventListener("pagehide", onPageHide);
     };
   }, [state.call]);
+
+  useRingtone(state.call);
 
   const call = useCallback(async (target: string) => {
     await clientRef.current?.call(target);

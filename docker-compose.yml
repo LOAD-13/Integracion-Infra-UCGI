@@ -151,6 +151,10 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./infra/mikopbx/bootstrap.sh:/bootstrap.sh:ro
+      # Audios pregenerados (TTS no-answer para llamante 1003). El bootstrap
+      # los copia al volumen mikopbx-data y los convierte a los formatos
+      # nativos de Asterisk con sox/ffmpeg dentro del contenedor mikopbx.
+      - ./infra/mikopbx/audios:/audios:ro
     entrypoint: ["/bin/sh", "/bootstrap.sh"]
 
   # ===== Microservicio de integración (Spring Boot) =====

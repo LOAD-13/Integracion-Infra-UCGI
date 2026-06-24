@@ -281,4 +281,123 @@ else
   log "Template endpoint-auto no encontrado en ${PJSIP_CONF}. Saltando."
 fi
 
+# ---------- Inyectar manualattributes para 1003 (Linphone móvil) ----------
+#
+# Linphone móvil NO soporta DTLS-SRTP. Si 1003 hereda webrtc=yes del template
+# endpoint-auto (parchado arriba), MikoPBX le ofrece SDP UDP/TLS/RTP/SAVPF y
+# Linphone responde 488 "Not Acceptable Here".
+#
+# Override por endpoint: apagamos webrtc específicamente para 1003 manteniendo
+# rtp_symmetric + force_rport + rewrite_contact para que el NAT del cel funcione.
+# A diferencia de 1001/1002, no podemos confiar en regeneración SQL→pjsip.conf
+# porque MikoPBX no inyecta manualattributes desde m_Sip en endpoints simples;
+# por eso el patch va directo sobre pjsip.conf y queda idempotente.
+
+OVERRIDE_1003='webrtc=no\nuse_avpf=no\nrtcp_mux=no\nmedia_encryption=no\ndtls_auto_generate_cert=no\nice_support=no\ndirect_media=no\nrtp_symmetric=yes\nrewrite_contact=yes\nforce_rport=yes'
+
+if run grep -q '^\[1003\](endpoint-auto)$' "${PJSIP_CONF}"; then
+  HAS_1003_OVERRIDE=$(run sh -c "awk '/^\[1003\]\(endpoint-auto\)/{flag=1;next} /^\[/{flag=0} flag && /^webrtc *= *no/' ${PJSIP_CONF}" || true)
+  if [ -z "${HAS_1003_OVERRIDE}" ]; then
+    log "Inyectando overrides webrtc=no en endpoint 1003 (Linphone móvil)"
+    # Limpio overrides residuales antes de insertar (idempotencia).
+    run sed -i "/^\[1003\](endpoint-auto)\$/,/^\[/{/^webrtc=/d;/^use_avpf=/d;/^rtcp_mux=/d;/^media_encryption=/d;/^dtls_auto_generate_cert=/d;/^ice_support=/d;/^direct_media=/d;/^rtp_symmetric=/d;/^rewrite_contact=/d;/^force_rport=/d;/^media_address=/d}" "${PJSIP_CONF}"
+    run sed -i "/^\[1003\](endpoint-auto)\$/a ${OVERRIDE_1003}" "${PJSIP_CONF}"
+    run asterisk -rx 'module reload res_pjsip.so' >/dev/null || true
+    log "endpoint 1003 parchado (webrtc=no) y PJSIP recargado."
+  else
+    log "endpoint 1003 ya tiene webrtc=no. Nada que hacer."
+  fi
+else
+  log "Endpoint 1003 no encontrado en ${PJSIP_CONF}. Saltando (creálo desde el integration-api primero)."
+fi
+
+# ---------- Copiar audios TTS al volumen mikopbx-data y convertir ----------
+#
+# El sidecar tiene /audios montado read-only desde infra/mikopbx/audios del repo.
+# Copiamos cada MP3 al directorio MOH del contenedor mikopbx (volumen
+# mikopbx-data) y lo convertimos a los formatos nativos de Asterisk (wav/sln/
+# alaw/ulaw/gsm) usando sox + ffmpeg que el contenedor mikopbx trae instalados.
+# Idempotente: solo convierte si el .sln (representante) no existe.
+
+MOH_DIR="/storage/usbdisk1/mikopbx/media/moh"
+
+if [ -f "/audios/ucgi-tts.mp3" ]; then
+  if ! run test -f "${MOH_DIR}/ucgi-tts.sln"; then
+    log "Copiando ucgi-tts.mp3 al volumen mikopbx-data"
+    docker cp /audios/ucgi-tts.mp3 "${TARGET_CONTAINER}:${MOH_DIR}/ucgi-tts.mp3"
+
+    log "Convirtiendo a wav/sln/alaw/ulaw/gsm dentro de ${TARGET_CONTAINER}"
+    run sh -c "cd ${MOH_DIR} && \
+      ffmpeg -nostats -loglevel error -y -i ucgi-tts.mp3 -ar 8000 -ac 1 -acodec pcm_s16le ucgi-tts.wav && \
+      sox ucgi-tts.wav -r 8000 -c 1 -t raw -e signed -b 16 ucgi-tts.sln && \
+      sox ucgi-tts.wav -r 8000 -c 1 -t al ucgi-tts.alaw && \
+      sox ucgi-tts.wav -r 8000 -c 1 -t ul ucgi-tts.ulaw && \
+      sox ucgi-tts.wav -r 8000 -c 1 ucgi-tts.gsm"
+    log "Audios TTS UCGI listos en ${MOH_DIR}."
+  else
+    log "Audios ucgi-tts.* ya presentes. Nada que hacer."
+  fi
+else
+  log "WARN: /audios/ucgi-tts.mp3 no montado; saltando setup TTS."
+fi
+
+# ---------- Registrar clase MOH ucgi-tts ----------
+#
+# MOH class apuntando al basename ucgi-tts (sin extensión). Asterisk elige
+# el formato según los códecs del peer en la llamada (.sln para softphones
+# WebRTC vía bridging, .alaw para Linphone móvil, etc).
+
+MOH_CONF="/etc/asterisk/musiconhold.conf"
+
+if ! run grep -q '^\[ucgi-tts\]' "${MOH_CONF}"; then
+  log "Agregando clase MOH [ucgi-tts] a ${MOH_CONF}"
+  run sh -c "printf '\n[ucgi-tts]; UCGI TTS no-answer (HU-04.11)\nmode=playlist\nentry=${MOH_DIR}/ucgi-tts\n' >> ${MOH_CONF}"
+  run asterisk -rx 'module reload res_musiconhold.so' >/dev/null || true
+  log "Clase MOH ucgi-tts registrada y res_musiconhold recargado."
+else
+  log "Clase MOH ucgi-tts ya presente."
+fi
+
+# ---------- Dialplan: m(ucgi-tts) cuando el llamante es 1003 ----------
+#
+# Inserta una línea después del Set(TRANSFER_OPTIONS=Tt) que appendéa
+# m(ucgi-tts) cuando ${CALLERID(num)} == "1003". Eso hace que el Dial()
+# del internal-users reemplace el ringback estándar por nuestro TTS en
+# loop hasta que el agente conteste, rechace o el cel cuelgue.
+# Idempotente: marker "ucgi-tts" en el archivo evita re-aplicar.
+
+EXT_CONF="/etc/asterisk/extensions.conf"
+
+if ! run grep -q 'ucgi-tts' "${EXT_CONF}"; then
+  log "Parchando ${EXT_CONF} para inyectar m(ucgi-tts) cuando llama 1003"
+  # Python adentro del contenedor porque sed con tantos $-escapes es frágil.
+  run python3 -c "
+import sys
+path = '${EXT_CONF}'
+with open(path, 'r') as f:
+    src = f.read()
+anchor = '\tsame => n,ExecIf(\$[\"\${TRANSFER_OPTIONS}x\" == \"x\" || \"\${ISTRANSFER}x\" != \"x\"]?Set(TRANSFER_OPTIONS=Tt))'
+patch = '\n\tsame => n,ExecIf(\$[\"\${CALLERID(num)}\" == \"1003\"]?Set(TRANSFER_OPTIONS=\${TRANSFER_OPTIONS}m(ucgi-tts)))'
+if anchor in src:
+    src = src.replace(anchor, anchor + patch, 1)
+    with open(path, 'w') as f:
+        f.write(src)
+    print('Patched OK')
+    sys.exit(0)
+# Fallback con espacio trailing (versiones más viejas de MikoPBX).
+anchor_sp = anchor + ' '
+if anchor_sp in src:
+    src = src.replace(anchor_sp, anchor_sp + patch, 1)
+    with open(path, 'w') as f:
+        f.write(src)
+    print('Patched OK (trailing space anchor)')
+    sys.exit(0)
+print('ANCHOR NOT FOUND - dialplan no patched')
+sys.exit(1)
+" >/dev/null && run asterisk -rx 'dialplan reload' >/dev/null || log "WARN: patch dialplan TTS falló (anchor distinto); continuando."
+  log "Dialplan recargado con m(ucgi-tts) condicional para llamante 1003."
+else
+  log "Dialplan ya tiene m(ucgi-tts). Nada que hacer."
+fi
+
 log "Bootstrap completado."
