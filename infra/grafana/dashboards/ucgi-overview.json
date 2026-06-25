@@ -1444,8 +1444,8 @@
     {
       "id": 58,
       "type": "timeseries",
-      "title": "Capacidad por códec — 5 codecs del lab",
-      "description": "Cada línea horizontal es el máximo teórico de llamadas simultáneas que sostiene el BW actual con ese códec (fórmula del shaper, headroom 20%). La línea naranja 'Activas (ahora)' es la lectura real de MikoPBX REST. Cuanto más se acerque a una línea de códec, más cerca está el shaper de forzar downgrade a un códec más liviano.",
+      "title": "Capacidad por códec — orange = códec activo (sigue tier)",
+      "description": "Cada línea de color = máximo teórico de llamadas que sostiene el BW con ese códec. La línea NARANJA gruesa es la capacidad del códec actualmente elegido por el shaper (usa `required_kbps` que es el codec activo). Cuando el shaper cambia de tier FULL→MIXED→DOWNGRADED, la línea naranja salta visualmente de la línea violeta (opus+vp8) a la azul (opus_24), a la roja (g729). Si baja a EMERGENCY, la línea desaparece (required=g729 pero el codec='reject').",
       "datasource": {
         "type": "prometheus",
         "uid": "ucgi-prom"
@@ -1460,37 +1460,42 @@
         {
           "expr": "floor((ucgi_shaper_bandwidth_mbps * 1000 * 0.8) / 174.4)",
           "refId": "A",
-          "legendFormat": "Máx teórico — G.711 alaw"
+          "legendFormat": "Máx — G.711 alaw"
         },
         {
           "expr": "floor((ucgi_shaper_bandwidth_mbps * 1000 * 0.8) / 174.4)",
           "refId": "B",
-          "legendFormat": "Máx teórico — G.711 ulaw"
+          "legendFormat": "Máx — G.711 ulaw"
         },
         {
           "expr": "floor((ucgi_shaper_bandwidth_mbps * 1000 * 0.8) / 72.8)",
           "refId": "C",
-          "legendFormat": "Máx teórico — GSM"
+          "legendFormat": "Máx — GSM"
         },
         {
           "expr": "floor((ucgi_shaper_bandwidth_mbps * 1000 * 0.8) / 62.4)",
           "refId": "D",
-          "legendFormat": "Máx teórico — G.729"
+          "legendFormat": "Máx — G.729"
         },
         {
           "expr": "floor((ucgi_shaper_bandwidth_mbps * 1000 * 0.8) / 94.4)",
           "refId": "E",
-          "legendFormat": "Máx teórico — Opus"
+          "legendFormat": "Máx — Opus"
         },
         {
-          "expr": "floor((ucgi_shaper_bandwidth_mbps * 1000 * 0.8) / 460.0)",
+          "expr": "floor((ucgi_shaper_bandwidth_mbps * 1000 * 0.8) / 460)",
           "refId": "F",
-          "legendFormat": "Máx teórico — Opus+VP8"
+          "legendFormat": "Máx — Opus+VP8"
+        },
+        {
+          "expr": "floor((ucgi_shaper_bandwidth_mbps * 1000 * 0.8) / ucgi_shaper_required_kbps)",
+          "refId": "G",
+          "legendFormat": "→ Códec activo (sigue tier)"
         },
         {
           "expr": "ucgi_shaper_active_calls",
-          "refId": "G",
-          "legendFormat": "Activas (ahora)"
+          "refId": "H",
+          "legendFormat": "Activas reales"
         }
       ],
       "fieldConfig": {
@@ -1512,7 +1517,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Activas (ahora)"
+              "options": "→ Códec activo (sigue tier)"
             },
             "properties": [
               {
@@ -1524,18 +1529,53 @@
               },
               {
                 "id": "custom.lineWidth",
-                "value": 4
+                "value": 5
               },
               {
                 "id": "custom.fillOpacity",
-                "value": 15
+                "value": 25
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "solid"
+                }
               }
             ]
           },
           {
             "matcher": {
               "id": "byName",
-              "options": "Máx teórico — G.711 alaw"
+              "options": "Activas reales"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "white",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 2
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    5,
+                    5
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Máx — G.711 alaw"
             },
             "properties": [
               {
@@ -1550,7 +1590,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Máx teórico — G.711 ulaw"
+              "options": "Máx — G.711 ulaw"
             },
             "properties": [
               {
@@ -1565,7 +1605,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Máx teórico — GSM"
+              "options": "Máx — GSM"
             },
             "properties": [
               {
@@ -1580,7 +1620,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Máx teórico — G.729"
+              "options": "Máx — G.729"
             },
             "properties": [
               {
@@ -1595,7 +1635,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Máx teórico — Opus"
+              "options": "Máx — Opus"
             },
             "properties": [
               {
@@ -1610,7 +1650,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Máx teórico — Opus+VP8"
+              "options": "Máx — Opus+VP8"
             },
             "properties": [
               {
